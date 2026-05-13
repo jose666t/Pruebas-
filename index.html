@@ -8,6 +8,9 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 
+    <!-- Puter.js IA sin API key -->
+    <script src="https://js.puter.com/v2/"></script>
+
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
@@ -46,11 +49,6 @@
             appId: "1:287419005795:web:39a8618a4d725d0d6a7156",
             measurementId: "G-75T54PE8WE"
         };
-
-        // ======================================================
-        // 🤖 IA GRATIS SIN API KEY
-        // ======================================================
-        const AI_ENDPOINT = "https://text.pollinations.ai/openai";
 
         let db, auth, currentUser;
         let quizzes = [];
@@ -321,7 +319,7 @@
                             </div>
 
                             <h2 class="text-2xl font-black text-gray-800">
-                                Generador IA Gratis
+                                Generador IA con Puter
                             </h2>
                         </div>
 
@@ -536,7 +534,7 @@
         };
 
         // ======================================================
-        // 🤖 GENERAR PRUEBA CON IA GRATIS
+        // 🤖 GENERAR PRUEBA CON PUTER IA
         // ======================================================
         window.generateQuizWithAI = async () => {
             const promptInput = document.getElementById("quiz-prompt");
@@ -549,9 +547,13 @@
             }
 
             btn.disabled = true;
-            btn.innerHTML = "Generando con IA gratis...";
+            btn.innerHTML = "Generando con Puter IA...";
 
             try {
+                if (!window.puter || !window.puter.ai) {
+                    throw new Error("Puter.js no cargó correctamente. Revisa tu internet o recarga la página.");
+                }
+
                 const systemPrompt = `
 Genera un examen escolar en español.
 
@@ -560,12 +562,11 @@ No uses markdown.
 No escribas explicación.
 No pongas texto antes ni después del JSON.
 
-Estructura obligatoria:
-
+Formato exacto:
 {
   "questions": [
     {
-      "question": "Pregunta aquí",
+      "question": "Pregunta",
       "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
       "correct_index": 0
     }
@@ -573,93 +574,52 @@ Estructura obligatoria:
 }
 
 Reglas:
-- Genera exactamente la cantidad de preguntas que pida el usuario.
+- Genera exactamente la cantidad de preguntas pedida por el usuario.
 - Cada pregunta debe tener 4 opciones.
 - correct_index debe ser 0, 1, 2 o 3.
-- La respuesta correcta debe coincidir con una opción.
+- La opción correcta debe coincidir con correct_index.
 - No dejes preguntas vacías.
-                `;
+`;
 
-                const payload = {
-                    model: "openai",
-                    messages: [
-                        {
-                            role: "system",
-                            content: systemPrompt
-                        },
-                        {
-                            role: "user",
-                            content: topic
-                        }
-                    ],
-                    temperature: 0.7,
-                    seed: Math.floor(Math.random() * 100000)
-                };
+                const fullPrompt = `
+${systemPrompt}
 
-                let response;
+Solicitud del profesor:
+${topic}
+`;
+
+                let responseText = "";
 
                 try {
-                    response = await fetch(AI_ENDPOINT, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify(payload)
+                    const aiResponse = await puter.ai.chat(fullPrompt, {
+                        model: "gpt-4.1-nano"
                     });
+
+                    responseText = String(aiResponse);
+                    console.log("Respuesta Puter IA:", responseText);
+
                 } catch (e) {
-                    throw new Error("ERROR DE RED: No se pudo conectar con la IA gratis. Revisa tu internet.");
+                    console.error("Error Puter IA:", e);
+                    throw new Error("ERROR IA: No se pudo generar la prueba. Recarga e intenta otra vez.");
                 }
-
-                const rawText = await response.text();
-
-                let data = {};
-
-                try {
-                    data = JSON.parse(rawText);
-                } catch (e) {
-                    console.error("Respuesta no JSON:", rawText);
-                }
-
-                if (!response.ok) {
-                    console.error("STATUS:", response.status);
-                    console.error("RESPUESTA IA:", data || rawText);
-
-                    throw new Error(
-                        "ERROR IA " + response.status + ": " +
-                        (
-                            data?.message ||
-                            data?.error?.message ||
-                            rawText ||
-                            "El servidor no respondió correctamente."
-                        )
-                    );
-                }
-
-                if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-                    console.error("Respuesta IA inválida:", data);
-                    throw new Error("ERROR IA: La IA no devolvió contenido válido.");
-                }
-
-                const textResponse = data.choices[0].message.content;
-                console.log("Respuesta IA:", textResponse);
 
                 let quizData;
 
                 try {
-                    const startIndex = textResponse.indexOf("{");
-                    const endIndex = textResponse.lastIndexOf("}");
+                    const startIndex = responseText.indexOf("{");
+                    const endIndex = responseText.lastIndexOf("}");
 
                     if (startIndex === -1 || endIndex === -1) {
                         throw new Error("La IA no devolvió JSON.");
                     }
 
-                    const jsonText = textResponse.substring(startIndex, endIndex + 1);
+                    const jsonText = responseText.substring(startIndex, endIndex + 1);
                     quizData = JSON.parse(jsonText);
 
                     validarQuiz(quizData);
 
                 } catch (e) {
-                    console.error("Respuesta cruda fallida:", textResponse);
+                    console.error("Respuesta cruda fallida:", responseText);
                     throw new Error("ERROR FORMATO IA: La IA no estructuró bien las preguntas. Intenta otra vez.");
                 }
 
