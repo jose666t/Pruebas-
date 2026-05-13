@@ -48,7 +48,7 @@
         // 🤖 GEMINI CONFIG
         // AQUÍ VA TU API KEY DE GOOGLE AI STUDIO
         // ======================================================
-        const GEMINI_API_KEY = "PEGA_TU_API_KEY_AQUI";
+        const GEMINI_API_KEY = "AIzaSyDnxhcJkHpSaGpvQGRxWeJrpg6l4RYuZd0";
         const GEMINI_MODEL = "gemini-2.0-flash";
         const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -548,7 +548,7 @@
                 return;
             }
 
-            if (!GEMINI_API_KEY || GEMINI_API_KEY === "AIzaSyAc9P7Gq1UqntofLzrXJ-UOhrvfA9nei0E") {
+            if (!GEMINI_API_KEY || GEMINI_API_KEY === "PEGA_TU_API_KEY_AQUI") {
                 showToast("Falta poner tu API Key de Gemini.", "error");
                 return;
             }
