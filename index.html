@@ -9,7 +9,7 @@
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- SheetJS -->
+    <!-- SheetJS para exportar a Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <!-- Firebase SDKs -->
@@ -18,60 +18,75 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // =====================================================================
+        // 🟢 1. CONFIGURACIÓN DE BASE DE DATOS FIREBASE DEL USUARIO
+        // =====================================================================
+        const myFirebaseConfig = {
+            apiKey: "AIzaSyDmzF3Td-dPxPtkr1X69pE-oNcdaMQLAoI",
+            authDomain: "pruebas-2-f7033.firebaseapp.com",
+            databaseURL: "https://pruebas-2-f7033-default-rtdb.firebaseio.com",
+            projectId: "pruebas-2-f7033",
+            storageBucket: "pruebas-2-f7033.firebasestorage.app",
+            messagingSenderId: "287419005795",
+            appId: "1:287419005795:web:39a8618a4d725d0d6a7156",
+            measurementId: "G-75T54PE8WE"
+        };
+
+        // Tu API KEY de Gemini
+        const geminiApiKey = "AIzaSyB0qFGjOXcgReqjiAkdbX3VEu3OvV6HBnc"; 
+
         // Variables Globales
         let db, auth, currentUser;
         let quizzes = [];
         let allResults = [];
-        // API KEY proporcionada
-        const apiKey = "AIzaSyB0qFGjOXcgReqjiAkdbX3VEu3OvV6HBnc"; 
 
-        // 1. Inicialización de Firebase
+        // 2. Inicialización
         const initFirebase = async () => {
-            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-            const app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
+            let configToUse = myFirebaseConfig;
+
+            // Compatibilidad para previsualización en este chat vs Netlify
+            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                configToUse = JSON.parse(__firebase_config);
+            }
 
             try {
+                const app = initializeApp(configToUse);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Autenticación anónima para que los estudiantes no necesiten crear cuenta
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-            } catch (error) {
-                console.error("Error de autenticación:", error);
-                showToast("Error conectando a la base de datos.", "error");
-            }
 
-            onAuthStateChanged(auth, (user) => {
-                currentUser = user;
-                if (user) {
-                    setupDatabaseListeners();
-                }
-            });
+                onAuthStateChanged(auth, (user) => {
+                    currentUser = user;
+                    if (user) setupDatabaseListeners();
+                });
+            } catch (error) {
+                console.error("Error iniciando base de datos:", error);
+                showToast("Error conectando al servidor principal.", "error");
+            }
         };
 
-        // 2. Escuchar la Base de Datos (Firebase Firestore)
+        // 3. Escuchar la Base de Datos en Tiempo Real
         const setupDatabaseListeners = () => {
             if (!currentUser) return;
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            // Estructura de carpetas en Firebase
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'produccion-edutest';
             
             const quizzesRef = collection(db, 'artifacts', appId, 'public', 'data', 'quizzes');
             const resultsRef = collection(db, 'artifacts', appId, 'public', 'data', 'results');
 
-            // Cargar Pruebas
             onSnapshot(quizzesRef, (snapshot) => {
                 quizzes = [];
                 snapshot.forEach((doc) => quizzes.push({ id: doc.id, ...doc.data() }));
-                
-                if (window.appState.view === 'loading_student') {
-                    startStudentView();
-                } else if (window.appState.view === 'teacher_dashboard') {
-                    renderTeacherDashboard();
-                }
+                if (window.appState.view === 'loading_student') startStudentView();
+                else if (window.appState.view === 'teacher_dashboard') renderTeacherDashboard();
             }, (error) => console.error("Error cargando pruebas:", error));
 
-            // Cargar Resultados
             onSnapshot(resultsRef, (snapshot) => {
                 allResults = [];
                 snapshot.forEach((doc) => allResults.push({ id: doc.id, ...doc.data() }));
@@ -79,25 +94,17 @@
             }, (error) => console.error("Error cargando resultados:", error));
         };
 
-        // --- SISTEMA DE ESTADOS ---
-        window.appState = {
-            view: 'init',
-            currentQuiz: null,
-            studentName: '',
-            studentScore: 0,
-            urlPin: null
-        };
+        // --- SISTEMA DE NAVEGACIÓN ---
+        window.appState = { view: 'init', currentQuiz: null, studentName: '', studentScore: 0, urlPin: null };
 
         window.navigate = (view) => {
             window.appState.view = view;
             render();
         };
 
-        // Enrutador (Verifica si hay PIN en el enlace)
         const checkRouting = () => {
             const urlParams = new URLSearchParams(window.location.search);
             const pin = urlParams.get('pin');
-            
             if (pin) {
                 window.appState.urlPin = pin.toUpperCase();
                 navigate('loading_student');
@@ -106,7 +113,6 @@
             }
         };
 
-        // Renderizador Principal
         const render = () => {
             const container = document.getElementById('app-content');
             container.innerHTML = '';
@@ -116,7 +122,7 @@
                     container.innerHTML = `
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10 border-t-4 border-indigo-600 animate-fade-in">
                             <h2 class="text-2xl font-black text-gray-800 mb-2">Panel del Profesor</h2>
-                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu contraseña para acceder al sistema.</p>
+                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu contraseña para acceder al sistema de producción.</p>
                             <input type="password" id="teacher-pwd" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-indigo-500 mb-4" placeholder="Contraseña">
                             <button onclick="window.loginTeacher()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
                                 Ingresar
@@ -132,7 +138,7 @@
                     container.innerHTML = `
                         <div class="flex flex-col items-center justify-center mt-20">
                             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <p class="text-gray-600 font-medium">Cargando prueba...</p>
+                            <p class="text-gray-600 font-medium text-lg">Buscando prueba en el servidor...</p>
                         </div>
                     `;
                     break;
@@ -140,10 +146,10 @@
                     container.innerHTML = `
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10 border-t-4 border-green-500 animate-fade-in">
                             <div class="text-center mb-6">
-                                <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Evaluación</span>
+                                <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Evaluación en Vivo</span>
                             </div>
                             <h2 class="text-2xl font-bold text-gray-800 mb-2">${window.appState.currentQuiz.topic}</h2>
-                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu nombre para iniciar.</p>
+                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu nombre para iniciar la prueba registrada.</p>
                             
                             <label class="block text-gray-700 text-sm font-bold mb-2">Nombre Completo</label>
                             <input type="text" id="student-name-input" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-green-500 mb-6" placeholder="Ej. Juan Pérez">
@@ -161,18 +167,18 @@
                     container.innerHTML = `
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl text-center mt-10 animate-fade-in border-t-4 border-blue-500">
                             <div class="text-6xl mb-4">🏆</div>
-                            <h2 class="text-3xl font-bold text-gray-800 mb-2">¡Completado!</h2>
+                            <h2 class="text-3xl font-bold text-gray-800 mb-2">¡Prueba Finalizada!</h2>
                             <p class="text-gray-600 text-lg mb-6">${window.appState.studentName}</p>
                             
                             <div class="bg-gray-50 rounded-xl p-6 mb-6 border border-gray-100">
-                                <p class="text-sm text-gray-500 uppercase font-bold mb-2">Puntaje Obtenido</p>
+                                <p class="text-sm text-gray-500 uppercase font-bold mb-2">Puntaje Oficial</p>
                                 <span class="block text-5xl font-black text-indigo-600">
                                     ${window.appState.studentScore} <span class="text-2xl text-gray-400">/ ${window.appState.currentQuiz.questions.length}</span>
                                 </span>
                             </div>
 
                             <p class="text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
-                                Tus respuestas han sido guardadas. Ya puedes cerrar esta ventana.
+                                Tus respuestas han sido enviadas exitosamente al sistema del profesor. Ya puedes cerrar esta ventana.
                             </p>
                         </div>
                     `;
@@ -184,7 +190,7 @@
 
         window.loginTeacher = () => {
             const pwd = document.getElementById('teacher-pwd').value;
-            // AQUI SE ACTUALIZÓ LA CONTRASEÑA A norlan22
+            // CONTRASEÑA DE PRODUCCIÓN: norlan22
             if (pwd === 'norlan22') {
                 navigate('teacher_dashboard');
             } else {
@@ -195,33 +201,36 @@
         const renderTeacherDashboardHTML = (container) => {
             container.innerHTML = `
                 <div class="max-w-5xl mx-auto animate-fade-in">
-                    
                     <div class="bg-white p-8 rounded-2xl shadow-lg mb-8 border border-gray-100">
                         <div class="flex items-center gap-3 mb-6">
                             <div class="bg-indigo-100 p-3 rounded-lg text-indigo-600">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
                             </div>
-                            <h2 class="text-2xl font-black text-gray-800">Generador de Pruebas IA</h2>
+                            <h2 class="text-2xl font-black text-gray-800">Generador IA (Producción)</h2>
                         </div>
                         
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-gray-700 text-sm font-bold mb-2">Instrucciones para la IA</label>
-                                <textarea id="quiz-prompt" rows="3" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50" placeholder="Ej. Genera 10 problemas de derivadas e integrales básicas. Las opciones deben ser complejas."></textarea>
-                                <p class="text-xs text-gray-500 mt-2">💡 Tip: Especifica exactamente la cantidad de problemas que deseas.</p>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">Instrucciones para la Inteligencia Artificial</label>
+                                <textarea id="quiz-prompt" rows="3" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50" placeholder="Ej. Genera 10 problemas de matemáticas avanzadas."></textarea>
                             </div>
                             <div class="flex justify-end">
                                 <button id="btn-generate" onclick="window.generateQuizWithAI()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                                    Generar Prueba
+                                    Generar Prueba Oficial
                                 </button>
                             </div>
                         </div>
                     </div>
 
                     <div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-4 px-2">Mis Pruebas</h2>
+                        <h2 class="text-xl font-bold text-gray-800 mb-4 px-2">Base de Datos de Pruebas</h2>
                         <div id="quizzes-list" class="grid grid-cols-1 gap-4">
-                            <p class="text-gray-500 text-center py-4">Cargando...</p>
+                            <div class="animate-pulse flex space-x-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                                <div class="flex-1 space-y-4 py-1">
+                                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
+                                    <div class="h-4 bg-gray-200 rounded w-1/2"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -236,7 +245,7 @@
             if (quizzes.length === 0) {
                 listContainer.innerHTML = `
                     <div class="bg-white rounded-xl p-8 text-center border border-dashed border-gray-300">
-                        <p class="text-gray-500">No hay pruebas creadas.</p>
+                        <p class="text-gray-500">No hay pruebas registradas en la base de datos.</p>
                     </div>`;
                 return;
             }
@@ -273,7 +282,7 @@
                                 </button>
 
                                 <button onclick="window.downloadExcel('${quiz.id}', '${quiz.topic}')" ${quizResults.length === 0 ? 'disabled' : ''} class="flex-1 lg:flex-none bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2">
-                                    Excel
+                                    Descargar Excel
                                 </button>
 
                             </div>
@@ -294,7 +303,7 @@
             document.execCommand("copy");
             document.body.removeChild(tempInput);
 
-            showToast("Enlace copiado al portapapeles", "success");
+            showToast("Enlace de producción copiado", "success");
         };
 
         window.generateQuizWithAI = async () => {
@@ -308,13 +317,14 @@
             }
 
             btn.disabled = true;
-            btn.innerHTML = `Generando...`;
+            btn.innerHTML = `Conectando con IA...`;
 
             try {
-                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                // Modelo estable público
+                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
                 const systemPrompt = `Eres un creador de exámenes. Lee la solicitud del usuario y genera un quiz matemático.
-                IMPORTANTE: Adapta la cantidad de preguntas EXACTAMENTE a lo que el usuario pide en su instrucción (ej. si dice 10, genera 10). Si no especifica cantidad, genera 5 por defecto.
-                DEVUELVE ESTRICTAMENTE JSON. Estructura:
+                IMPORTANTE: Adapta la cantidad de preguntas EXACTAMENTE a lo que el usuario pide.
+                DEVUELVE ESTRICTAMENTE JSON, SIN TEXTO ADICIONAL Y SIN ETIQUETAS COMO \`\`\`json. Estructura:
                 {
                     "questions": [
                         {
@@ -338,13 +348,16 @@
                     body: JSON.stringify(payload)
                 });
 
-                if (!response.ok) throw new Error("Error en IA");
+                if (!response.ok) throw new Error("Error API IA");
 
                 const data = await response.json();
-                const quizData = JSON.parse(data.candidates[0].content.parts[0].text);
+                
+                // Limpieza de formato de IA
+                let jsonText = data.candidates[0].content.parts[0].text;
+                jsonText = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
+                const quizData = JSON.parse(jsonText);
 
-                // Guardar en Firestore
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'produccion-edutest';
                 const quizzesRef = collection(db, 'artifacts', appId, 'public', 'data', 'quizzes');
                 const pin = Math.random().toString(36).substring(2, 6).toUpperCase();
 
@@ -356,14 +369,14 @@
                 });
 
                 promptInput.value = '';
-                showToast("Prueba creada con éxito.", "success");
+                showToast("Prueba guardada en Base de Datos.", "success");
 
             } catch (error) {
-                console.error("Error:", error);
-                showToast("Error generando prueba. Revisa tu API KEY o conexión.", "error");
+                console.error("Detalle del Error:", error);
+                showToast("Fallo en la red o IA. Intenta de nuevo.", "error");
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = `Generar Prueba`;
+                btn.innerHTML = `Generar Prueba Oficial`;
             }
         };
 
@@ -384,7 +397,7 @@
             XLSX.utils.book_append_sheet(wb, ws, "Resultados");
             
             const cleanTopic = quizTopic.substring(0, 15).replace(/[^a-z0-9]/gi, '');
-            XLSX.writeFile(wb, `Notas_${cleanTopic}.xlsx`);
+            XLSX.writeFile(wb, `Reporte_Oficial_${cleanTopic}.xlsx`);
         };
 
         // --- LÓGICA DEL ESTUDIANTE ---
@@ -399,8 +412,8 @@
             } else if (quizzes.length > 0) {
                 document.getElementById('app-content').innerHTML = `
                     <div class="max-w-md mx-auto text-center mt-20 p-6 bg-white rounded-xl shadow-lg border-t-4 border-red-500">
-                        <h2 class="text-xl font-bold text-gray-800">Enlace Inválido</h2>
-                        <p class="text-gray-500 mt-2">La prueba no existe.</p>
+                        <h2 class="text-xl font-bold text-gray-800">Enlace No Válido</h2>
+                        <p class="text-gray-500 mt-2">Esta prueba no se encuentra en el servidor.</p>
                     </div>
                 `;
             }
@@ -454,7 +467,7 @@
                         ${questionsHTML}
                         
                         <button type="submit" id="btn-submit-quiz" class="w-full mt-4 bg-gray-800 hover:bg-gray-900 text-white font-bold py-5 rounded-2xl shadow-xl transition transform hover:scale-[1.02] text-xl">
-                            Entregar Prueba
+                            Enviar y Finalizar Prueba
                         </button>
                     </form>
                 </div>
@@ -479,13 +492,12 @@
             }
 
             btn.disabled = true;
-            btn.innerHTML = `Guardando...`;
+            btn.innerHTML = `Enviando a la base de datos...`;
 
             try {
-                // Guardar resultado en Firestore
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'produccion-edutest';
                 const resultsRef = collection(db, 'artifacts', appId, 'public', 'data', 'results');
-
+                
                 await addDoc(resultsRef, {
                     quizId: quiz.id,
                     studentName: window.appState.studentName,
@@ -499,9 +511,9 @@
 
             } catch (error) {
                 console.error(error);
-                showToast("Error al enviar.", "error");
+                showToast("Error de conexión al enviar.", "error");
                 btn.disabled = false;
-                btn.innerHTML = `Entregar Prueba`;
+                btn.innerHTML = `Enviar y Finalizar Prueba`;
             }
         };
 
@@ -541,10 +553,9 @@
     </header>
 
     <main id="app-content" class="flex-grow w-full px-4 py-8 relative">
-        <!-- Contenido Dinámico -->
+        <!-- Contenido -->
     </main>
 
 </body>
 </html>
-
 
