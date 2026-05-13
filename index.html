@@ -312,38 +312,105 @@
             container.innerHTML = `
                 <div class="max-w-5xl mx-auto animate-fade-in">
 
-                    <div class="bg-white p-8 rounded-2xl shadow-lg mb-8 border border-gray-100">
+                    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg mb-8 border border-gray-100">
                         <div class="flex items-center gap-3 mb-6">
                             <div class="bg-indigo-100 p-3 rounded-lg text-indigo-600">
                                 🤖
                             </div>
 
-                            <h2 class="text-2xl font-black text-gray-800">
-                                Generador IA con Puter
-                            </h2>
+                            <div>
+                                <h2 class="text-2xl font-black text-gray-800">
+                                    Generador IA Pro
+                                </h2>
+                                <p class="text-sm text-gray-500">
+                                    Crea pruebas por tema, nivel, tipo y cantidad.
+                                </p>
+                            </div>
                         </div>
 
-                        <div class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-gray-700 text-sm font-bold mb-2">
-                                    Instrucciones para la Inteligencia Artificial
+                                    Tema de la prueba
                                 </label>
 
-                                <textarea
-                                    id="quiz-prompt"
-                                    rows="3"
-                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50"
-                                    placeholder="Ej. Genera 10 preguntas de matemáticas sobre ecuaciones exponenciales."></textarea>
+                                <input
+                                    id="quiz-topic"
+                                    type="text"
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
+                                    placeholder="Ej. Ecuaciones exponenciales"
+                                >
                             </div>
 
-                            <div class="flex justify-end">
-                                <button
-                                    id="btn-generate"
-                                    onclick="window.generateQuizWithAI()"
-                                    class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                                    Generar Prueba Oficial
-                                </button>
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">
+                                    Cantidad de preguntas
+                                </label>
+
+                                <input
+                                    id="quiz-count"
+                                    type="number"
+                                    min="1"
+                                    max="30"
+                                    value="10"
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
+                                >
                             </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">
+                                    Nivel
+                                </label>
+
+                                <select
+                                    id="quiz-level"
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
+                                >
+                                    <option value="mixto">Mixto: básico, intermedio y avanzado</option>
+                                    <option value="basico">Básico</option>
+                                    <option value="intermedio">Intermedio</option>
+                                    <option value="avanzado">Avanzado</option>
+                                    <option value="general">General</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">
+                                    Tipo de prueba
+                                </label>
+
+                                <select
+                                    id="quiz-type"
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
+                                >
+                                    <option value="mixta">Mixta</option>
+                                    <option value="multiple_choice">Selección múltiple</option>
+                                    <option value="true_false">Verdadero/Falso</option>
+                                    <option value="fill_blank">Complete</option>
+                                    <option value="short_answer">Respuesta corta</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mt-4">
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                Instrucciones extra
+                            </label>
+
+                            <textarea
+                                id="quiz-extra"
+                                rows="3"
+                                class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50"
+                                placeholder="Ej. Que incluya ejercicios con procedimiento sencillo, que sea para secundaria, etc."></textarea>
+                        </div>
+
+                        <div class="flex justify-end mt-5">
+                            <button
+                                id="btn-generate"
+                                onclick="window.generateQuizWithAI()"
+                                class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                                Generar Prueba Oficial
+                            </button>
                         </div>
                     </div>
 
@@ -413,6 +480,16 @@
 
                                     <span>
                                         ${new Date(quiz.createdAt).toLocaleDateString()}
+                                    </span>
+                                </div>
+
+                                <div class="flex flex-wrap gap-2 mt-3">
+                                    <span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
+                                        Nivel: ${escapeHTML(quiz.level || "general")}
+                                    </span>
+
+                                    <span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
+                                        Tipo: ${escapeHTML(quiz.type || "mixta")}
                                     </span>
                                 </div>
                             </div>
@@ -534,58 +611,120 @@
         };
 
         // ======================================================
-        // 🤖 GENERAR PRUEBA CON PUTER IA
+        // 🤖 GENERAR PRUEBA CON PUTER IA PRO
         // ======================================================
         window.generateQuizWithAI = async () => {
-            const promptInput = document.getElementById("quiz-prompt");
+            const topicInput = document.getElementById("quiz-topic");
+            const countInput = document.getElementById("quiz-count");
+            const levelInput = document.getElementById("quiz-level");
+            const typeInput = document.getElementById("quiz-type");
+            const extraInput = document.getElementById("quiz-extra");
             const btn = document.getElementById("btn-generate");
-            const topic = promptInput.value.trim();
+
+            const topic = topicInput.value.trim();
+            const count = parseInt(countInput.value);
+            const level = levelInput.value;
+            const type = typeInput.value;
+            const extra = extraInput.value.trim();
 
             if (!topic) {
-                showToast("Por favor describe la prueba.", "error");
+                showToast("Escribe el tema de la prueba.", "error");
+                return;
+            }
+
+            if (!count || count < 1 || count > 30) {
+                showToast("La cantidad debe estar entre 1 y 30 preguntas.", "error");
                 return;
             }
 
             btn.disabled = true;
-            btn.innerHTML = "Generando con Puter IA...";
+            btn.innerHTML = "Generando prueba pro...";
 
             try {
                 if (!window.puter || !window.puter.ai) {
-                    throw new Error("Puter.js no cargó correctamente. Revisa tu internet o recarga la página.");
+                    throw new Error("Puter.js no cargó correctamente. Recarga la página.");
                 }
 
                 const systemPrompt = `
-Genera un examen escolar en español.
+Eres un generador profesional de pruebas escolares en español.
+
+Puedes crear estos tipos de preguntas:
+
+1. multiple_choice
+- Selección múltiple.
+- Debe tener 4 opciones.
+- Usa correct_index para la opción correcta.
+- answer debe ser "".
+
+2. true_false
+- Verdadero o falso.
+- options debe ser ["Verdadero", "Falso"].
+- correct_index debe ser 0 o 1.
+- answer debe ser "".
+
+3. fill_blank
+- Complete.
+- La pregunta debe incluir "____".
+- options debe ser [].
+- correct_index debe ser null.
+- answer debe tener la respuesta correcta.
+
+4. short_answer
+- Respuesta corta.
+- options debe ser [].
+- correct_index debe ser null.
+- answer debe tener la respuesta correcta.
+
+Niveles permitidos:
+- basico
+- intermedio
+- avanzado
+- general
 
 Devuelve solamente JSON válido.
 No uses markdown.
-No escribas explicación.
-No pongas texto antes ni después del JSON.
+No expliques nada.
+No escribas texto antes ni después del JSON.
 
-Formato exacto:
+Formato obligatorio:
 {
   "questions": [
     {
-      "question": "Pregunta",
+      "type": "multiple_choice",
+      "level": "basico",
+      "question": "Pregunta aquí",
       "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
-      "correct_index": 0
+      "correct_index": 0,
+      "answer": ""
     }
   ]
 }
 
 Reglas:
-- Genera exactamente la cantidad de preguntas pedida por el usuario.
-- Cada pregunta debe tener 4 opciones.
-- correct_index debe ser 0, 1, 2 o 3.
-- La opción correcta debe coincidir con correct_index.
+- Genera exactamente la cantidad pedida.
+- Si el nivel es mixto, reparte entre basico, intermedio y avanzado.
+- Si el tipo es mixta, mezcla multiple_choice, true_false, fill_blank y short_answer.
+- Cada pregunta debe tener type, level, question, options, correct_index y answer.
 - No dejes preguntas vacías.
+- Las respuestas deben ser claras y comparables.
+`;
+
+                const teacherRequest = `
+Crea una prueba escolar sobre: ${topic}
+Cantidad exacta de preguntas: ${count}
+Nivel solicitado: ${level}
+Tipo de prueba: ${type}
+Instrucciones extra: ${extra || "Ninguna"}
+
+Si el nivel solicitado es "mixto", usa basico, intermedio y avanzado.
+Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, complete y respuesta corta.
 `;
 
                 const fullPrompt = `
 ${systemPrompt}
 
 Solicitud del profesor:
-${topic}
+${teacherRequest}
 `;
 
                 let responseText = "";
@@ -618,9 +757,13 @@ ${topic}
 
                     validarQuiz(quizData);
 
+                    if (quizData.questions.length !== count) {
+                        throw new Error("La IA no generó la cantidad exacta. Intenta de nuevo.");
+                    }
+
                 } catch (e) {
                     console.error("Respuesta cruda fallida:", responseText);
-                    throw new Error("ERROR FORMATO IA: La IA no estructuró bien las preguntas. Intenta otra vez.");
+                    throw new Error("ERROR FORMATO IA: La IA no estructuró bien la prueba. Intenta otra vez.");
                 }
 
                 const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
@@ -637,13 +780,23 @@ ${topic}
                 const pin = Math.random().toString(36).substring(2, 6).toUpperCase();
 
                 await addDoc(quizzesRef, {
-                    topic: topic,
+                    topic: `${topic} - ${count} preguntas`,
+                    baseTopic: topic,
+                    count: count,
+                    level: level,
+                    type: type,
+                    extra: extra,
                     pin: pin,
                     questions: quizData.questions,
                     createdAt: Date.now()
                 });
 
-                promptInput.value = "";
+                topicInput.value = "";
+                countInput.value = "10";
+                levelInput.value = "mixto";
+                typeInput.value = "mixta";
+                extraInput.value = "";
+
                 showToast("Prueba generada y guardada exitosamente.", "success");
 
             } catch (error) {
@@ -665,46 +818,124 @@ ${topic}
                 throw new Error("No se generaron preguntas.");
             }
 
+            const validTypes = ["multiple_choice", "true_false", "fill_blank", "short_answer"];
+
             quizData.questions.forEach((q, index) => {
+                if (!q.type || !validTypes.includes(q.type)) {
+                    throw new Error(`Pregunta ${index + 1} tiene type inválido.`);
+                }
+
+                if (!q.level || typeof q.level !== "string") {
+                    q.level = "general";
+                }
+
+                const cleanLevel = q.level.toLowerCase();
+
+                if (!["basico", "básico", "intermedio", "avanzado", "general"].includes(cleanLevel)) {
+                    q.level = "general";
+                }
+
+                if (cleanLevel === "básico") {
+                    q.level = "basico";
+                }
+
                 if (!q.question || typeof q.question !== "string") {
                     throw new Error(`Pregunta ${index + 1} inválida.`);
                 }
 
-                if (!Array.isArray(q.options) || q.options.length !== 4) {
-                    throw new Error(`Pregunta ${index + 1} no tiene 4 opciones.`);
+                if (q.type === "multiple_choice") {
+                    if (!Array.isArray(q.options) || q.options.length !== 4) {
+                        throw new Error(`Pregunta ${index + 1} no tiene 4 opciones.`);
+                    }
+
+                    if (
+                        typeof q.correct_index !== "number" ||
+                        q.correct_index < 0 ||
+                        q.correct_index > 3
+                    ) {
+                        throw new Error(`Pregunta ${index + 1} tiene correct_index inválido.`);
+                    }
+
+                    q.answer = "";
                 }
 
-                if (
-                    typeof q.correct_index !== "number" ||
-                    q.correct_index < 0 ||
-                    q.correct_index > 3
-                ) {
-                    throw new Error(`Pregunta ${index + 1} tiene correct_index inválido.`);
+                if (q.type === "true_false") {
+                    q.options = ["Verdadero", "Falso"];
+
+                    if (
+                        typeof q.correct_index !== "number" ||
+                        q.correct_index < 0 ||
+                        q.correct_index > 1
+                    ) {
+                        throw new Error(`Pregunta ${index + 1} tiene correct_index inválido.`);
+                    }
+
+                    q.answer = "";
+                }
+
+                if (q.type === "fill_blank" || q.type === "short_answer") {
+                    q.options = [];
+                    q.correct_index = null;
+
+                    if (!q.answer || typeof q.answer !== "string") {
+                        throw new Error(`Pregunta ${index + 1} no tiene respuesta correcta.`);
+                    }
+
+                    if (q.type === "fill_blank" && !q.question.includes("____")) {
+                        q.question = q.question + " ____";
+                    }
                 }
             });
         };
 
         // ======================================================
-        // 📊 EXCEL
+        // 📊 EXCEL COMPLETO
         // ======================================================
         window.downloadExcel = (quizId, quizTopic) => {
             const quizResults = allResults.filter((r) => r.quizId === quizId);
 
-            const excelData = quizResults.map((r) => ({
-                "Estudiante": r.studentName,
-                "Respuestas Correctas": r.score,
-                "Total Preguntas": r.totalQuestions,
-                "Calificación (%)": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
-                "Fecha": new Date(r.timestamp).toLocaleString()
-            }));
+            let excelData = [];
+
+            quizResults.forEach((r) => {
+                if (Array.isArray(r.answers) && r.answers.length > 0) {
+                    r.answers.forEach((ans, index) => {
+                        excelData.push({
+                            "Estudiante": r.studentName,
+                            "Puntaje": `${r.score}/${r.totalQuestions}`,
+                            "Calificación (%)": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
+                            "Pregunta #": index + 1,
+                            "Nivel": ans.level || "general",
+                            "Tipo": getReadableType(ans.type),
+                            "Pregunta": ans.question,
+                            "Respuesta del estudiante": ans.answer,
+                            "Respuesta correcta": ans.correctAnswer,
+                            "Correcta": ans.isCorrect ? "Sí" : "No",
+                            "Fecha": new Date(r.timestamp).toLocaleString()
+                        });
+                    });
+                } else {
+                    excelData.push({
+                        "Estudiante": r.studentName,
+                        "Puntaje": `${r.score}/${r.totalQuestions}`,
+                        "Calificación (%)": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
+                        "Fecha": new Date(r.timestamp).toLocaleString()
+                    });
+                }
+            });
 
             const ws = XLSX.utils.json_to_sheet(excelData);
 
             ws["!cols"] = [
                 { wch: 30 },
-                { wch: 20 },
                 { wch: 15 },
                 { wch: 15 },
+                { wch: 12 },
+                { wch: 15 },
+                { wch: 18 },
+                { wch: 50 },
+                { wch: 30 },
+                { wch: 30 },
+                { wch: 12 },
                 { wch: 25 }
             ];
 
@@ -756,25 +987,48 @@ ${topic}
             const quiz = window.appState.currentQuiz;
 
             let questionsHTML = quiz.questions.map((q, qIndex) => {
-                const optionsHTML = q.options.map((opt, oIndex) => `
-                    <label class="block p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-green-50 transition">
-                        <div class="flex items-center">
-                            <input
-                                type="radio"
-                                name="q_${qIndex}"
-                                value="${oIndex}"
-                                class="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500"
-                            >
+                let answerHTML = "";
 
-                            <span class="ml-4 text-gray-700 font-medium">
-                                ${escapeHTML(opt)}
-                            </span>
-                        </div>
-                    </label>
-                `).join("");
+                if (q.type === "multiple_choice" || q.type === "true_false") {
+                    answerHTML = q.options.map((opt, oIndex) => `
+                        <label class="block p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-green-50 transition">
+                            <div class="flex items-center">
+                                <input
+                                    type="radio"
+                                    name="q_${qIndex}"
+                                    value="${oIndex}"
+                                    class="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500"
+                                >
+
+                                <span class="ml-4 text-gray-700 font-medium">
+                                    ${escapeHTML(opt)}
+                                </span>
+                            </div>
+                        </label>
+                    `).join("");
+                }
+
+                if (q.type === "fill_blank" || q.type === "short_answer") {
+                    answerHTML = `
+                        <input
+                            type="text"
+                            name="q_${qIndex}"
+                            class="w-full px-4 py-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            placeholder="Escribe tu respuesta aquí"
+                        >
+                    `;
+                }
 
                 return `
                     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                        <div class="flex flex-wrap gap-2 mb-4">
+                            ${getLevelBadge(q.level)}
+
+                            <span class="text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
+                                ${getReadableType(q.type)}
+                            </span>
+                        </div>
+
                         <h3 class="text-lg font-bold text-gray-800 mb-6">
                             <span class="text-green-500">
                                 ${qIndex + 1}.
@@ -783,7 +1037,7 @@ ${topic}
                         </h3>
 
                         <div class="space-y-3">
-                            ${optionsHTML}
+                            ${answerHTML}
                         </div>
                     </div>
                 `;
@@ -823,17 +1077,55 @@ ${topic}
             const btn = document.getElementById("btn-submit-quiz");
 
             let score = 0;
+            const studentAnswers = [];
 
             for (let i = 0; i < quiz.questions.length; i++) {
-                const selected = form.querySelector(`input[name="q_${i}"]:checked`);
+                const q = quiz.questions[i];
 
-                if (!selected) {
-                    showToast(`Responde la pregunta ${i + 1}`, "error");
-                    return;
+                if (q.type === "multiple_choice" || q.type === "true_false") {
+                    const selected = form.querySelector(`input[name="q_${i}"]:checked`);
+
+                    if (!selected) {
+                        showToast(`Responde la pregunta ${i + 1}`, "error");
+                        return;
+                    }
+
+                    const selectedIndex = parseInt(selected.value);
+                    const isCorrect = selectedIndex === q.correct_index;
+
+                    if (isCorrect) score++;
+
+                    studentAnswers.push({
+                        question: q.question,
+                        type: q.type,
+                        level: q.level,
+                        answer: q.options[selectedIndex],
+                        correctAnswer: q.options[q.correct_index],
+                        isCorrect: isCorrect
+                    });
                 }
 
-                if (parseInt(selected.value) === quiz.questions[i].correct_index) {
-                    score++;
+                if (q.type === "fill_blank" || q.type === "short_answer") {
+                    const input = form.querySelector(`input[name="q_${i}"]`);
+                    const answer = input.value.trim();
+
+                    if (!answer) {
+                        showToast(`Responde la pregunta ${i + 1}`, "error");
+                        return;
+                    }
+
+                    const isCorrect = compareTextAnswers(answer, q.answer);
+
+                    if (isCorrect) score++;
+
+                    studentAnswers.push({
+                        question: q.question,
+                        type: q.type,
+                        level: q.level,
+                        answer: answer,
+                        correctAnswer: q.answer,
+                        isCorrect: isCorrect
+                    });
                 }
             }
 
@@ -857,6 +1149,7 @@ ${topic}
                     studentName: window.appState.studentName,
                     score: score,
                     totalQuestions: quiz.questions.length,
+                    answers: studentAnswers,
                     timestamp: Date.now()
                 });
 
@@ -875,6 +1168,54 @@ ${topic}
         // ======================================================
         // 🧰 UTILIDADES
         // ======================================================
+        const normalizeText = (text) => {
+            return String(text || "")
+                .toLowerCase()
+                .trim()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .replace(/[.,;:!?¿¡()]/g, "")
+                .replace(/\s+/g, " ");
+        };
+
+        const compareTextAnswers = (studentAnswer, correctAnswer) => {
+            const a = normalizeText(studentAnswer);
+            const b = normalizeText(correctAnswer);
+
+            if (a === b) return true;
+
+            const aNoSpace = a.replace(/\s+/g, "");
+            const bNoSpace = b.replace(/\s+/g, "");
+
+            return aNoSpace === bNoSpace;
+        };
+
+        const getReadableType = (type) => {
+            if (type === "multiple_choice") return "Selección múltiple";
+            if (type === "true_false") return "Verdadero/Falso";
+            if (type === "fill_blank") return "Complete";
+            if (type === "short_answer") return "Respuesta corta";
+            return "Pregunta";
+        };
+
+        const getLevelBadge = (level) => {
+            const cleanLevel = String(level || "general").toLowerCase();
+
+            if (cleanLevel === "basico" || cleanLevel === "básico") {
+                return `<span class="text-xs font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">Básico</span>`;
+            }
+
+            if (cleanLevel === "intermedio") {
+                return `<span class="text-xs font-bold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">Intermedio</span>`;
+            }
+
+            if (cleanLevel === "avanzado") {
+                return `<span class="text-xs font-bold bg-red-100 text-red-700 px-3 py-1 rounded-full">Avanzado</span>`;
+            }
+
+            return `<span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">General</span>`;
+        };
+
         const showToast = (message, type = "info") => {
             const toast = document.createElement("div");
             const bgColor = type === "error" ? "bg-red-500" : "bg-green-500";
