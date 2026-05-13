@@ -5,13 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EduTest Pro - Plataforma de Evaluación IA</title>
 
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Puter.js IA sin API key -->
     <script src="https://js.puter.com/v2/"></script>
-
-    <!-- SheetJS para exportar a Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <script type="module">
@@ -36,9 +31,6 @@
             where
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ======================================================
-        // 🔥 FIREBASE CONFIG
-        // ======================================================
         const myFirebaseConfig = {
             apiKey: "AIzaSyDmzF3Td-dPxPtkr1X69pE-oNcdaMQLAoI",
             authDomain: "pruebas-2-f7033.firebaseapp.com",
@@ -62,9 +54,6 @@
             urlPin: null
         };
 
-        // ======================================================
-        // 🔥 INICIAR FIREBASE
-        // ======================================================
         const initFirebase = async () => {
             let configToUse = myFirebaseConfig;
 
@@ -85,10 +74,7 @@
 
                 onAuthStateChanged(auth, (user) => {
                     currentUser = user;
-
-                    if (user) {
-                        setupDatabaseListeners();
-                    }
+                    if (user) setupDatabaseListeners();
                 });
 
             } catch (error) {
@@ -97,9 +83,6 @@
             }
         };
 
-        // ======================================================
-        // 📡 ESCUCHAR FIRESTORE
-        // ======================================================
         const setupDatabaseListeners = () => {
             if (!currentUser) return;
 
@@ -110,7 +93,6 @@
 
             onSnapshot(quizzesRef, (snapshot) => {
                 quizzes = [];
-
                 snapshot.forEach((docItem) => {
                     quizzes.push({
                         id: docItem.id,
@@ -118,13 +100,8 @@
                     });
                 });
 
-                if (window.appState.view === "loading_student") {
-                    startStudentView();
-                }
-
-                if (window.appState.view === "teacher_dashboard") {
-                    renderTeacherDashboard();
-                }
+                if (window.appState.view === "loading_student") startStudentView();
+                if (window.appState.view === "teacher_dashboard") renderTeacherDashboard();
 
             }, (error) => {
                 console.error("Error cargando pruebas:", error);
@@ -133,7 +110,6 @@
 
             onSnapshot(resultsRef, (snapshot) => {
                 allResults = [];
-
                 snapshot.forEach((docItem) => {
                     allResults.push({
                         id: docItem.id,
@@ -141,9 +117,7 @@
                     });
                 });
 
-                if (window.appState.view === "teacher_dashboard") {
-                    renderTeacherDashboard();
-                }
+                if (window.appState.view === "teacher_dashboard") renderTeacherDashboard();
 
             }, (error) => {
                 console.error("Error cargando resultados:", error);
@@ -151,9 +125,6 @@
             });
         };
 
-        // ======================================================
-        // 🧭 NAVEGACIÓN
-        // ======================================================
         window.navigate = (view) => {
             window.appState.view = view;
             render();
@@ -179,13 +150,8 @@
                 case "teacher_login":
                     container.innerHTML = `
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10 border-t-4 border-indigo-600 animate-fade-in">
-                            <h2 class="text-2xl font-black text-gray-800 mb-2">
-                                Panel del Profesor
-                            </h2>
-
-                            <p class="text-gray-500 mb-6 text-sm">
-                                Ingresa tu contraseña para acceder al sistema.
-                            </p>
+                            <h2 class="text-2xl font-black text-gray-800 mb-2">Panel del Profesor</h2>
+                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu contraseña para acceder al sistema.</p>
 
                             <input
                                 type="password"
@@ -212,9 +178,7 @@
                     container.innerHTML = `
                         <div class="flex flex-col items-center justify-center mt-20">
                             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <p class="text-gray-600 font-medium text-lg">
-                                Buscando prueba en el servidor...
-                            </p>
+                            <p class="text-gray-600 font-medium text-lg">Buscando prueba en el servidor...</p>
                         </div>
                     `;
                     break;
@@ -236,9 +200,7 @@
                                 Ingresa tu nombre para iniciar la prueba registrada.
                             </p>
 
-                            <label class="block text-gray-700 text-sm font-bold mb-2">
-                                Nombre Completo
-                            </label>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Nombre Completo</label>
 
                             <input
                                 type="text"
@@ -265,9 +227,7 @@
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl text-center mt-10 animate-fade-in border-t-4 border-blue-500">
                             <div class="text-6xl mb-4">🏆</div>
 
-                            <h2 class="text-3xl font-bold text-gray-800 mb-2">
-                                ¡Prueba Finalizada!
-                            </h2>
+                            <h2 class="text-3xl font-bold text-gray-800 mb-2">¡Prueba Finalizada!</h2>
 
                             <p class="text-gray-600 text-lg mb-6">
                                 ${escapeHTML(window.appState.studentName)}
@@ -295,9 +255,6 @@
             }
         };
 
-        // ======================================================
-        // 👨‍🏫 PROFESOR
-        // ======================================================
         window.loginTeacher = () => {
             const pwd = document.getElementById("teacher-pwd").value;
 
@@ -314,9 +271,7 @@
 
                     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg mb-8 border border-gray-100">
                         <div class="flex items-center gap-3 mb-6">
-                            <div class="bg-indigo-100 p-3 rounded-lg text-indigo-600">
-                                🤖
-                            </div>
+                            <div class="bg-indigo-100 p-3 rounded-lg text-indigo-600">🤖</div>
 
                             <div>
                                 <h2 class="text-2xl font-black text-gray-800">
@@ -369,7 +324,7 @@
                                     <option value="mixto">Mixto: básico, intermedio y avanzado</option>
                                     <option value="basico">Básico</option>
                                     <option value="intermedio">Intermedio</option>
-                                    <option value="avanzado">Avanzado</option>
+                                    <option value="avanzado">Avanzado Ultra</option>
                                     <option value="general">General</option>
                                 </select>
                             </div>
@@ -401,7 +356,7 @@
                                 id="quiz-extra"
                                 rows="3"
                                 class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50"
-                                placeholder="Ej. Que incluya ejercicios con procedimiento sencillo, que sea para secundaria, etc."></textarea>
+                                placeholder="Ej. Que sea difícil, con problemas largos, razonamiento y trampas."></textarea>
                         </div>
 
                         <div class="flex justify-end mt-5">
@@ -442,9 +397,7 @@
             if (quizzes.length === 0) {
                 listContainer.innerHTML = `
                     <div class="bg-white rounded-xl p-8 text-center border border-dashed border-gray-300">
-                        <p class="text-gray-500">
-                            No hay pruebas registradas en la base de datos.
-                        </p>
+                        <p class="text-gray-500">No hay pruebas registradas en la base de datos.</p>
                     </div>
                 `;
                 return;
@@ -478,18 +431,16 @@
 
                                     <span>•</span>
 
-                                    <span>
-                                        ${new Date(quiz.createdAt).toLocaleDateString()}
-                                    </span>
+                                    <span>${new Date(quiz.createdAt).toLocaleDateString()}</span>
                                 </div>
 
                                 <div class="flex flex-wrap gap-2 mt-3">
                                     <span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
-                                        Nivel: ${escapeHTML(quiz.level || "general")}
+                                        Nivel: ${escapeHTML(getReadableLevel(quiz.level || "general"))}
                                     </span>
 
                                     <span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
-                                        Tipo: ${escapeHTML(quiz.type || "mixta")}
+                                        Tipo: ${escapeHTML(getReadableType(quiz.type || "mixta"))}
                                     </span>
                                 </div>
                             </div>
@@ -540,9 +491,7 @@
             const link = `${baseUrl}?pin=${pin}`;
 
             navigator.clipboard.writeText(link)
-                .then(() => {
-                    showToast("Enlace copiado", "success");
-                })
+                .then(() => showToast("Enlace copiado", "success"))
                 .catch(() => {
                     const tempInput = document.createElement("input");
                     tempInput.value = link;
@@ -550,14 +499,10 @@
                     tempInput.select();
                     document.execCommand("copy");
                     document.body.removeChild(tempInput);
-
                     showToast("Enlace copiado", "success");
                 });
         };
 
-        // ======================================================
-        // 🗑️ ELIMINAR PRUEBA
-        // ======================================================
         window.deleteQuiz = async (quizId, quizTopic) => {
             const confirmar = confirm(
                 `¿Seguro que quieres eliminar esta prueba?\n\n${quizTopic}\n\nTambién se eliminarán los resultados guardados.`
@@ -568,31 +513,11 @@
             try {
                 const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
 
-                const quizDocRef = doc(
-                    db,
-                    "artifacts",
-                    appId,
-                    "public",
-                    "data",
-                    "quizzes",
-                    quizId
-                );
-
-                const resultsRef = collection(
-                    db,
-                    "artifacts",
-                    appId,
-                    "public",
-                    "data",
-                    "results"
-                );
-
-                const resultsQuery = query(
-                    resultsRef,
-                    where("quizId", "==", quizId)
-                );
-
+                const quizDocRef = doc(db, "artifacts", appId, "public", "data", "quizzes", quizId);
+                const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
+                const resultsQuery = query(resultsRef, where("quizId", "==", quizId));
                 const resultsSnapshot = await getDocs(resultsQuery);
+
                 const deletePromises = [];
 
                 resultsSnapshot.forEach((resultDoc) => {
@@ -610,9 +535,6 @@
             }
         };
 
-        // ======================================================
-        // 🤖 GENERAR PRUEBA CON PUTER IA PRO
-        // ======================================================
         window.generateQuizWithAI = async () => {
             const topicInput = document.getElementById("quiz-topic");
             const countInput = document.getElementById("quiz-count");
@@ -638,7 +560,7 @@
             }
 
             btn.disabled = true;
-            btn.innerHTML = "Generando prueba pro...";
+            btn.innerHTML = "Generando prueba difícil...";
 
             try {
                 if (!window.puter || !window.puter.ai) {
@@ -648,7 +570,9 @@
                 const systemPrompt = `
 Eres un generador profesional de pruebas escolares en español.
 
-Puedes crear estos tipos de preguntas:
+Tu tarea es crear evaluaciones de alta calidad para estudiantes de undécimo año de secundaria.
+
+Tipos permitidos:
 
 1. multiple_choice
 - Selección múltiple.
@@ -681,9 +605,24 @@ Niveles permitidos:
 - avanzado
 - general
 
+Definición de dificultad:
+- basico: preguntas sencillas y directas.
+- intermedio: preguntas normales, con algo de análisis.
+- avanzado: preguntas MUY difíciles, de reto máximo, con razonamiento profundo, varios pasos, distractores fuertes y enunciados exigentes. Deben ser difíciles para estudiantes de undécimo año, pero sin mencionar otro nivel académico.
+- general: dificultad equilibrada.
+
+Reglas especiales para avanzado:
+- Si el profesor elige avanzado, crea una prueba difícilísima.
+- Usa problemas que requieran análisis, interpretación, cálculo o razonamiento.
+- Evita preguntas obvias.
+- Usa distractores parecidos a la respuesta correcta.
+- Incluye trampas académicas sanas: signos, unidades, interpretación, condiciones, excepciones o detalles ocultos.
+- Mantén el contenido dentro del tema pedido.
+- No menciones la palabra "universitario" en preguntas, opciones ni explicaciones.
+- No expliques nada fuera del JSON.
+
 Devuelve solamente JSON válido.
 No uses markdown.
-No expliques nada.
 No escribas texto antes ni después del JSON.
 
 Formato obligatorio:
@@ -691,7 +630,7 @@ Formato obligatorio:
   "questions": [
     {
       "type": "multiple_choice",
-      "level": "basico",
+      "level": "avanzado",
       "question": "Pregunta aquí",
       "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
       "correct_index": 0,
@@ -700,7 +639,7 @@ Formato obligatorio:
   ]
 }
 
-Reglas:
+Reglas obligatorias:
 - Genera exactamente la cantidad pedida.
 - Si el nivel es mixto, reparte entre basico, intermedio y avanzado.
 - Si el tipo es mixta, mezcla multiple_choice, true_false, fill_blank y short_answer.
@@ -716,16 +655,13 @@ Nivel solicitado: ${level}
 Tipo de prueba: ${type}
 Instrucciones extra: ${extra || "Ninguna"}
 
-Si el nivel solicitado es "mixto", usa basico, intermedio y avanzado.
+Si el nivel solicitado es "avanzado", hazla difícilísima, con razonamiento fuerte, problemas retadores y distractores complicados.
+No uses ni menciones la palabra "universitario".
+Si el nivel solicitado es "mixto", incluye básico, intermedio y avanzado, donde avanzado sea el bloque más difícil.
 Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, complete y respuesta corta.
 `;
 
-                const fullPrompt = `
-${systemPrompt}
-
-Solicitud del profesor:
-${teacherRequest}
-`;
+                const fullPrompt = `${systemPrompt}\n\nSolicitud del profesor:\n${teacherRequest}`;
 
                 let responseText = "";
 
@@ -767,16 +703,7 @@ ${teacherRequest}
                 }
 
                 const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
-
-                const quizzesRef = collection(
-                    db,
-                    "artifacts",
-                    appId,
-                    "public",
-                    "data",
-                    "quizzes"
-                );
-
+                const quizzesRef = collection(db, "artifacts", appId, "public", "data", "quizzes");
                 const pin = Math.random().toString(36).substring(2, 6).toUpperCase();
 
                 await addDoc(quizzesRef, {
@@ -888,9 +815,6 @@ ${teacherRequest}
             });
         };
 
-        // ======================================================
-        // 📊 EXCEL COMPLETO
-        // ======================================================
         window.downloadExcel = (quizId, quizTopic) => {
             const quizResults = allResults.filter((r) => r.quizId === quizId);
 
@@ -904,7 +828,7 @@ ${teacherRequest}
                             "Puntaje": `${r.score}/${r.totalQuestions}`,
                             "Calificación (%)": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
                             "Pregunta #": index + 1,
-                            "Nivel": ans.level || "general",
+                            "Nivel": getReadableLevel(ans.level || "general"),
                             "Tipo": getReadableType(ans.type),
                             "Pregunta": ans.question,
                             "Respuesta del estudiante": ans.answer,
@@ -930,7 +854,7 @@ ${teacherRequest}
                 { wch: 15 },
                 { wch: 15 },
                 { wch: 12 },
-                { wch: 15 },
+                { wch: 18 },
                 { wch: 18 },
                 { wch: 50 },
                 { wch: 30 },
@@ -946,9 +870,6 @@ ${teacherRequest}
             XLSX.writeFile(wb, `Reporte_Oficial_${cleanTopic}.xlsx`);
         };
 
-        // ======================================================
-        // 👨‍🎓 ESTUDIANTE
-        // ======================================================
         const startStudentView = () => {
             const pin = window.appState.urlPin;
             const quiz = quizzes.find((q) => q.pin === pin);
@@ -959,10 +880,7 @@ ${teacherRequest}
             } else if (quizzes.length > 0) {
                 document.getElementById("app-content").innerHTML = `
                     <div class="max-w-md mx-auto text-center mt-20 p-6 bg-white rounded-xl shadow-lg border-t-4 border-red-500">
-                        <h2 class="text-xl font-bold text-gray-800">
-                            Enlace No Válido
-                        </h2>
-
+                        <h2 class="text-xl font-bold text-gray-800">Enlace No Válido</h2>
                         <p class="text-gray-500 mt-2">
                             Esta prueba no se encuentra en el servidor o el PIN es incorrecto.
                         </p>
@@ -1030,9 +948,7 @@ ${teacherRequest}
                         </div>
 
                         <h3 class="text-lg font-bold text-gray-800 mb-6">
-                            <span class="text-green-500">
-                                ${qIndex + 1}.
-                            </span>
+                            <span class="text-green-500">${qIndex + 1}.</span>
                             ${escapeHTML(q.question)}
                         </h3>
 
@@ -1134,15 +1050,7 @@ ${teacherRequest}
 
             try {
                 const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
-
-                const resultsRef = collection(
-                    db,
-                    "artifacts",
-                    appId,
-                    "public",
-                    "data",
-                    "results"
-                );
+                const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
 
                 await addDoc(resultsRef, {
                     quizId: quiz.id,
@@ -1165,9 +1073,6 @@ ${teacherRequest}
             }
         };
 
-        // ======================================================
-        // 🧰 UTILIDADES
-        // ======================================================
         const normalizeText = (text) => {
             return String(text || "")
                 .toLowerCase()
@@ -1195,7 +1100,18 @@ ${teacherRequest}
             if (type === "true_false") return "Verdadero/Falso";
             if (type === "fill_blank") return "Complete";
             if (type === "short_answer") return "Respuesta corta";
+            if (type === "mixta") return "Mixta";
             return "Pregunta";
+        };
+
+        const getReadableLevel = (level) => {
+            const cleanLevel = String(level || "general").toLowerCase();
+
+            if (cleanLevel === "basico" || cleanLevel === "básico") return "Básico";
+            if (cleanLevel === "intermedio") return "Intermedio";
+            if (cleanLevel === "avanzado") return "Avanzado Ultra";
+            if (cleanLevel === "mixto") return "Mixto";
+            return "General";
         };
 
         const getLevelBadge = (level) => {
@@ -1210,7 +1126,7 @@ ${teacherRequest}
             }
 
             if (cleanLevel === "avanzado") {
-                return `<span class="text-xs font-bold bg-red-100 text-red-700 px-3 py-1 rounded-full">Avanzado</span>`;
+                return `<span class="text-xs font-bold bg-red-100 text-red-700 px-3 py-1 rounded-full">Avanzado Ultra</span>`;
             }
 
             return `<span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">General</span>`;
@@ -1237,11 +1153,7 @@ ${teacherRequest}
 
             setTimeout(() => {
                 toast.classList.add("translate-y-20", "opacity-0");
-
-                setTimeout(() => {
-                    toast.remove();
-                }, 300);
-
+                setTimeout(() => toast.remove(), 300);
             }, 6000);
         };
 
