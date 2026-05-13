@@ -14,8 +14,25 @@
     <!-- Firebase + App -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        import {
+            getAuth,
+            signInAnonymously,
+            signInWithCustomToken,
+            onAuthStateChanged
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        import {
+            getFirestore,
+            collection,
+            addDoc,
+            onSnapshot,
+            doc,
+            deleteDoc,
+            getDocs,
+            query,
+            where
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ======================================================
         // 🔥 FIREBASE CONFIG
@@ -34,7 +51,7 @@
         // ======================================================
         // 🤖 MISTRAL CONFIG
         // ======================================================
-        const MISTRAL_API_KEY = "yqtCOuNgJgmpc7IWznhcogkoofhIRqry";
+        const MISTRAL_API_KEY = "PEGA_TU_API_KEY_AQUI";
         const MISTRAL_ENDPOINT = "https://api.mistral.ai/v1/chat/completions";
 
         let db, auth, currentUser;
@@ -72,7 +89,10 @@
 
                 onAuthStateChanged(auth, (user) => {
                     currentUser = user;
-                    if (user) setupDatabaseListeners();
+
+                    if (user) {
+                        setupDatabaseListeners();
+                    }
                 });
 
             } catch (error) {
@@ -94,11 +114,18 @@
 
             onSnapshot(quizzesRef, (snapshot) => {
                 quizzes = [];
-                snapshot.forEach((doc) => quizzes.push({ id: doc.id, ...doc.data() }));
+                snapshot.forEach((docItem) => {
+                    quizzes.push({
+                        id: docItem.id,
+                        ...docItem.data()
+                    });
+                });
 
                 if (window.appState.view === "loading_student") {
                     startStudentView();
-                } else if (window.appState.view === "teacher_dashboard") {
+                }
+
+                if (window.appState.view === "teacher_dashboard") {
                     renderTeacherDashboard();
                 }
 
@@ -109,7 +136,12 @@
 
             onSnapshot(resultsRef, (snapshot) => {
                 allResults = [];
-                snapshot.forEach((doc) => allResults.push({ id: doc.id, ...doc.data() }));
+                snapshot.forEach((docItem) => {
+                    allResults.push({
+                        id: docItem.id,
+                        ...docItem.data()
+                    });
+                });
 
                 if (window.appState.view === "teacher_dashboard") {
                     renderTeacherDashboard();
@@ -149,8 +181,13 @@
                 case "teacher_login":
                     container.innerHTML = `
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10 border-t-4 border-indigo-600 animate-fade-in">
-                            <h2 class="text-2xl font-black text-gray-800 mb-2">Panel del Profesor</h2>
-                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu contraseña para acceder al sistema.</p>
+                            <h2 class="text-2xl font-black text-gray-800 mb-2">
+                                Panel del Profesor
+                            </h2>
+
+                            <p class="text-gray-500 mb-6 text-sm">
+                                Ingresa tu contraseña para acceder al sistema.
+                            </p>
 
                             <input
                                 type="password"
@@ -177,7 +214,9 @@
                     container.innerHTML = `
                         <div class="flex flex-col items-center justify-center mt-20">
                             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <p class="text-gray-600 font-medium text-lg">Buscando prueba en el servidor...</p>
+                            <p class="text-gray-600 font-medium text-lg">
+                                Buscando prueba en el servidor...
+                            </p>
                         </div>
                     `;
                     break;
@@ -274,6 +313,7 @@
         const renderTeacherDashboardHTML = (container) => {
             container.innerHTML = `
                 <div class="max-w-5xl mx-auto animate-fade-in">
+
                     <div class="bg-white p-8 rounded-2xl shadow-lg mb-8 border border-gray-100">
                         <div class="flex items-center gap-3 mb-6">
                             <div class="bg-indigo-100 p-3 rounded-lg text-indigo-600">
@@ -323,6 +363,7 @@
                             </div>
                         </div>
                     </div>
+
                 </div>
             `;
         };
@@ -348,6 +389,7 @@
 
             listContainer.innerHTML = sortedQuizzes.map((quiz) => {
                 const quizResults = allResults.filter((r) => r.quizId === quiz.id);
+                const resolvedCount = quizResults.length;
 
                 return `
                     <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
@@ -381,12 +423,16 @@
 
                                 <div class="text-center px-4 border-r border-gray-200 hidden sm:block">
                                     <span class="block text-2xl font-black text-gray-800">
-                                        ${quizResults.length}
+                                        ${resolvedCount}
                                     </span>
 
                                     <span class="text-xs text-gray-500 uppercase tracking-wide">
-                                        Entregas
+                                        La han resuelto
                                     </span>
+                                </div>
+
+                                <div class="block sm:hidden w-full bg-blue-50 text-blue-700 text-sm font-bold px-4 py-2 rounded-lg text-center">
+                                    ${resolvedCount} estudiante${resolvedCount === 1 ? "" : "s"} la han resuelto
                                 </div>
 
                                 <button
@@ -397,9 +443,15 @@
 
                                 <button
                                     onclick="window.downloadExcel('${quiz.id}', '${escapeAttribute(quiz.topic)}')"
-                                    ${quizResults.length === 0 ? "disabled" : ""}
+                                    ${resolvedCount === 0 ? "disabled" : ""}
                                     class="flex-1 lg:flex-none bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition">
                                     Descargar Excel
+                                </button>
+
+                                <button
+                                    onclick="window.deleteQuiz('${quiz.id}', '${escapeAttribute(quiz.topic)}')"
+                                    class="flex-1 lg:flex-none bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition">
+                                    Eliminar
                                 </button>
                             </div>
                         </div>
@@ -413,7 +465,9 @@
             const link = `${baseUrl}?pin=${pin}`;
 
             navigator.clipboard.writeText(link)
-                .then(() => showToast("Enlace copiado", "success"))
+                .then(() => {
+                    showToast("Enlace copiado", "success");
+                })
                 .catch(() => {
                     const tempInput = document.createElement("input");
                     tempInput.value = link;
@@ -421,8 +475,65 @@
                     tempInput.select();
                     document.execCommand("copy");
                     document.body.removeChild(tempInput);
+
                     showToast("Enlace copiado", "success");
                 });
+        };
+
+        // ======================================================
+        // 🗑️ ELIMINAR PRUEBA Y SUS RESULTADOS
+        // ======================================================
+        window.deleteQuiz = async (quizId, quizTopic) => {
+            const confirmar = confirm(
+                `¿Seguro que quieres eliminar esta prueba?\n\n${quizTopic}\n\nTambién se eliminarán los resultados guardados.`
+            );
+
+            if (!confirmar) return;
+
+            try {
+                const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
+
+                const quizDocRef = doc(
+                    db,
+                    "artifacts",
+                    appId,
+                    "public",
+                    "data",
+                    "quizzes",
+                    quizId
+                );
+
+                const resultsRef = collection(
+                    db,
+                    "artifacts",
+                    appId,
+                    "public",
+                    "data",
+                    "results"
+                );
+
+                const resultsQuery = query(
+                    resultsRef,
+                    where("quizId", "==", quizId)
+                );
+
+                const resultsSnapshot = await getDocs(resultsQuery);
+
+                const deletePromises = [];
+
+                resultsSnapshot.forEach((resultDoc) => {
+                    deletePromises.push(deleteDoc(resultDoc.ref));
+                });
+
+                await Promise.all(deletePromises);
+                await deleteDoc(quizDocRef);
+
+                showToast("Prueba eliminada correctamente.", "success");
+
+            } catch (error) {
+                console.error("Error eliminando prueba:", error);
+                showToast("Error al eliminar la prueba: " + error.message, "error");
+            }
         };
 
         // ======================================================
@@ -438,7 +549,7 @@
                 return;
             }
 
-            if (!MISTRAL_API_KEY || MISTRAL_API_KEY === "PEGA_TU_API_KEY_AQUI") {
+            if (!MISTRAL_API_KEY || MISTRAL_API_KEY === "yqtCOuNgJgmpc7IWznhcogkoofhIRqry") {
                 showToast("Falta poner tu API Key de Mistral en el código.", "error");
                 return;
             }
@@ -474,13 +585,20 @@ Reglas:
 - correct_index debe ser 0, 1, 2 o 3.
 - La respuesta correcta debe coincidir con una opción.
 - No dejes preguntas vacías.
+- Usa español claro.
                 `;
 
                 const payload = {
                     model: "mistral-small-latest",
                     messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: topic }
+                        {
+                            role: "system",
+                            content: systemPrompt
+                        },
+                        {
+                            role: "user",
+                            content: topic
+                        }
                     ],
                     temperature: 0.7,
                     response_format: {
@@ -507,6 +625,7 @@ Reglas:
 
                 if (!response.ok) {
                     console.error("Error Mistral:", data);
+
                     throw new Error(
                         "ERROR MISTRAL: " +
                         (
@@ -546,7 +665,16 @@ Reglas:
                 }
 
                 const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
-                const quizzesRef = collection(db, "artifacts", appId, "public", "data", "quizzes");
+
+                const quizzesRef = collection(
+                    db,
+                    "artifacts",
+                    appId,
+                    "public",
+                    "data",
+                    "quizzes"
+                );
+
                 const pin = Math.random().toString(36).substring(2, 6).toUpperCase();
 
                 await addDoc(quizzesRef, {
@@ -612,6 +740,7 @@ Reglas:
             }));
 
             const ws = XLSX.utils.json_to_sheet(excelData);
+
             ws["!cols"] = [
                 { wch: 30 },
                 { wch: 20 },
@@ -688,7 +817,9 @@ Reglas:
                 return `
                     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 mb-6">
                         <h3 class="text-lg font-bold text-gray-800 mb-6">
-                            <span class="text-green-500">${qIndex + 1}.</span>
+                            <span class="text-green-500">
+                                ${qIndex + 1}.
+                            </span>
                             ${escapeHTML(q.question)}
                         </h3>
 
@@ -752,7 +883,15 @@ Reglas:
 
             try {
                 const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
-                const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
+
+                const resultsRef = collection(
+                    db,
+                    "artifacts",
+                    appId,
+                    "public",
+                    "data",
+                    "results"
+                );
 
                 await addDoc(resultsRef, {
                     quizId: quiz.id,
@@ -768,6 +907,7 @@ Reglas:
             } catch (error) {
                 console.error(error);
                 showToast("Error de conexión al enviar. Intenta de nuevo.", "error");
+
                 btn.disabled = false;
                 btn.innerHTML = "Enviar y Finalizar Prueba";
             }
@@ -797,7 +937,11 @@ Reglas:
 
             setTimeout(() => {
                 toast.classList.add("translate-y-20", "opacity-0");
-                setTimeout(() => toast.remove(), 300);
+
+                setTimeout(() => {
+                    toast.remove();
+                }, 300);
+
             }, 6000);
         };
 
