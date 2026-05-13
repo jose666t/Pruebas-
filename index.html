@@ -5,7 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EduTest Pro - Plataforma de Evaluación IA</title>
 
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- SheetJS para exportar a Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
     <script type="module">
@@ -45,12 +48,9 @@
         };
 
         // ======================================================
-        // 🤖 GEMINI CONFIG
-        // AQUÍ VA TU API KEY DE GOOGLE AI STUDIO
+        // 🤖 IA GRATIS SIN API KEY
         // ======================================================
-        const GEMINI_API_KEY = "AIzaSyDnxhcJkHpSaGpvQGRxWeJrpg6l4RYuZd0";
-        const GEMINI_MODEL = "gemini-1.5-flash-8b";
-        const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+        const AI_ENDPOINT = "https://text.pollinations.ai/openai";
 
         let db, auth, currentUser;
         let quizzes = [];
@@ -321,7 +321,7 @@
                             </div>
 
                             <h2 class="text-2xl font-black text-gray-800">
-                                Generador IA con Gemini
+                                Generador IA Gratis
                             </h2>
                         </div>
 
@@ -536,7 +536,7 @@
         };
 
         // ======================================================
-        // 🤖 GENERAR PRUEBA CON GEMINI
+        // 🤖 GENERAR PRUEBA CON IA GRATIS
         // ======================================================
         window.generateQuizWithAI = async () => {
             const promptInput = document.getElementById("quiz-prompt");
@@ -548,21 +548,14 @@
                 return;
             }
 
-            if (!GEMINI_API_KEY || GEMINI_API_KEY === "PEGA_TU_API_KEY_AQUI") {
-                showToast("Falta poner tu API Key de Gemini.", "error");
-                return;
-            }
-
             btn.disabled = true;
-            btn.innerHTML = "Generando con Gemini...";
+            btn.innerHTML = "Generando con IA gratis...";
 
             try {
                 const systemPrompt = `
-Eres un creador experto de exámenes escolares.
+Genera un examen escolar en español.
 
-Debes generar EXACTAMENTE la cantidad de preguntas que pida el usuario.
-
-Devuelve SOLAMENTE un objeto JSON válido.
+Devuelve solamente JSON válido.
 No uses markdown.
 No escribas explicación.
 No pongas texto antes ni después del JSON.
@@ -580,41 +573,33 @@ Estructura obligatoria:
 }
 
 Reglas:
+- Genera exactamente la cantidad de preguntas que pida el usuario.
 - Cada pregunta debe tener 4 opciones.
 - correct_index debe ser 0, 1, 2 o 3.
 - La respuesta correcta debe coincidir con una opción.
 - No dejes preguntas vacías.
-- Usa español claro.
                 `;
 
                 const payload = {
-                    systemInstruction: {
-                        parts: [
-                            {
-                                text: systemPrompt
-                            }
-                        ]
-                    },
-                    contents: [
+                    model: "openai",
+                    messages: [
+                        {
+                            role: "system",
+                            content: systemPrompt
+                        },
                         {
                             role: "user",
-                            parts: [
-                                {
-                                    text: topic
-                                }
-                            ]
+                            content: topic
                         }
                     ],
-                    generationConfig: {
-                        temperature: 0.7,
-                        responseMimeType: "application/json"
-                    }
+                    temperature: 0.7,
+                    seed: Math.floor(Math.random() * 100000)
                 };
 
                 let response;
 
                 try {
-                    response = await fetch(GEMINI_ENDPOINT, {
+                    response = await fetch(AI_ENDPOINT, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -622,7 +607,7 @@ Reglas:
                         body: JSON.stringify(payload)
                     });
                 } catch (e) {
-                    throw new Error("ERROR DE RED: No se pudo conectar con Gemini. Revisa tu internet.");
+                    throw new Error("ERROR DE RED: No se pudo conectar con la IA gratis. Revisa tu internet.");
                 }
 
                 const rawText = await response.text();
@@ -637,32 +622,26 @@ Reglas:
 
                 if (!response.ok) {
                     console.error("STATUS:", response.status);
-                    console.error("RESPUESTA GEMINI:", data || rawText);
+                    console.error("RESPUESTA IA:", data || rawText);
 
                     throw new Error(
-                        "ERROR GEMINI " + response.status + ": " +
+                        "ERROR IA " + response.status + ": " +
                         (
-                            data?.error?.message ||
                             data?.message ||
+                            data?.error?.message ||
                             rawText ||
                             "El servidor no respondió correctamente."
                         )
                     );
                 }
 
-                if (
-                    !data.candidates ||
-                    !data.candidates[0] ||
-                    !data.candidates[0].content ||
-                    !data.candidates[0].content.parts ||
-                    !data.candidates[0].content.parts[0]
-                ) {
-                    console.error("Respuesta Gemini inválida:", data);
-                    throw new Error("ERROR GEMINI: La IA no devolvió contenido válido.");
+                if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                    console.error("Respuesta IA inválida:", data);
+                    throw new Error("ERROR IA: La IA no devolvió contenido válido.");
                 }
 
-                const textResponse = data.candidates[0].content.parts[0].text;
-                console.log("Respuesta Gemini:", textResponse);
+                const textResponse = data.choices[0].message.content;
+                console.log("Respuesta IA:", textResponse);
 
                 let quizData;
 
@@ -671,7 +650,7 @@ Reglas:
                     const endIndex = textResponse.lastIndexOf("}");
 
                     if (startIndex === -1 || endIndex === -1) {
-                        throw new Error("Gemini no devolvió JSON.");
+                        throw new Error("La IA no devolvió JSON.");
                     }
 
                     const jsonText = textResponse.substring(startIndex, endIndex + 1);
@@ -681,7 +660,7 @@ Reglas:
 
                 } catch (e) {
                     console.error("Respuesta cruda fallida:", textResponse);
-                    throw new Error("ERROR FORMATO IA: Gemini no estructuró bien las preguntas. Intenta otra vez.");
+                    throw new Error("ERROR FORMATO IA: La IA no estructuró bien las preguntas. Intenta otra vez.");
                 }
 
                 const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
