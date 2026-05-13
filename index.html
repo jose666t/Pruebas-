@@ -1,26 +1,25 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EduTest Pro - Plataforma de Evaluación IA</title>
-    
+
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <!-- SheetJS para exportar a Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
-    <!-- Firebase SDKs -->
+    <!-- Firebase + App -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // =====================================================================
-        // 🟢 1. CONFIGURACIÓN DE BASE DE DATOS FIREBASE DEL USUARIO
-        // =====================================================================
+        // ======================================================
+        // 🔥 FIREBASE CONFIG
+        // ======================================================
         const myFirebaseConfig = {
             apiKey: "AIzaSyDmzF3Td-dPxPtkr1X69pE-oNcdaMQLAoI",
             authDomain: "pruebas-2-f7033.firebaseapp.com",
@@ -32,20 +31,31 @@
             measurementId: "G-75T54PE8WE"
         };
 
-        // Tu API KEY de Gemini
-        const geminiApiKey = "AIzaSyB0qFGjOXcgReqjiAkdbX3VEu3OvV6HBnc"; 
+        // ======================================================
+        // 🤖 MISTRAL CONFIG
+        // ======================================================
+        const MISTRAL_API_KEY = "yqtCOuNgJgmpc7IWznhcogkoofhIRqry";
+        const MISTRAL_ENDPOINT = "https://api.mistral.ai/v1/chat/completions";
 
-        // Variables Globales
         let db, auth, currentUser;
         let quizzes = [];
         let allResults = [];
 
-        // 2. Inicialización
+        window.appState = {
+            view: "init",
+            currentQuiz: null,
+            studentName: "",
+            studentScore: 0,
+            urlPin: null
+        };
+
+        // ======================================================
+        // 🔥 INICIAR FIREBASE
+        // ======================================================
         const initFirebase = async () => {
             let configToUse = myFirebaseConfig;
 
-            // Compatibilidad para previsualización en este chat vs Netlify
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+            if (typeof __firebase_config !== "undefined" && __firebase_config) {
                 configToUse = JSON.parse(__firebase_config);
             }
 
@@ -54,8 +64,7 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                // Autenticación anónima para que los estudiantes no necesiten crear cuenta
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
@@ -65,38 +74,56 @@
                     currentUser = user;
                     if (user) setupDatabaseListeners();
                 });
+
             } catch (error) {
-                console.error("Error iniciando base de datos:", error);
-                showToast("Error conectando al servidor principal.", "error");
+                console.error("Error iniciando Firebase:", error);
+                showToast("Error crítico al conectar con Firebase: " + error.message, "error");
             }
         };
 
-        // 3. Escuchar la Base de Datos en Tiempo Real
+        // ======================================================
+        // 📡 ESCUCHAR FIRESTORE
+        // ======================================================
         const setupDatabaseListeners = () => {
             if (!currentUser) return;
-            // Estructura de carpetas en Firebase
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'produccion-edutest';
-            
-            const quizzesRef = collection(db, 'artifacts', appId, 'public', 'data', 'quizzes');
-            const resultsRef = collection(db, 'artifacts', appId, 'public', 'data', 'results');
+
+            const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
+
+            const quizzesRef = collection(db, "artifacts", appId, "public", "data", "quizzes");
+            const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
 
             onSnapshot(quizzesRef, (snapshot) => {
                 quizzes = [];
                 snapshot.forEach((doc) => quizzes.push({ id: doc.id, ...doc.data() }));
-                if (window.appState.view === 'loading_student') startStudentView();
-                else if (window.appState.view === 'teacher_dashboard') renderTeacherDashboard();
-            }, (error) => console.error("Error cargando pruebas:", error));
+
+                if (window.appState.view === "loading_student") {
+                    startStudentView();
+                } else if (window.appState.view === "teacher_dashboard") {
+                    renderTeacherDashboard();
+                }
+
+            }, (error) => {
+                console.error("Error cargando pruebas:", error);
+                showToast("Error cargando pruebas desde Firebase.", "error");
+            });
 
             onSnapshot(resultsRef, (snapshot) => {
                 allResults = [];
                 snapshot.forEach((doc) => allResults.push({ id: doc.id, ...doc.data() }));
-                if (window.appState.view === 'teacher_dashboard') renderTeacherDashboard();
-            }, (error) => console.error("Error cargando resultados:", error));
+
+                if (window.appState.view === "teacher_dashboard") {
+                    renderTeacherDashboard();
+                }
+
+            }, (error) => {
+                console.error("Error cargando resultados:", error);
+                showToast("Error cargando resultados desde Firebase.", "error");
+            });
         };
 
-        // --- SISTEMA DE NAVEGACIÓN ---
-        window.appState = { view: 'init', currentQuiz: null, studentName: '', studentScore: 0, urlPin: null };
-
+        // ======================================================
+        // 🧭 NAVEGACIÓN
+        // ======================================================
         window.navigate = (view) => {
             window.appState.view = view;
             render();
@@ -104,37 +131,49 @@
 
         const checkRouting = () => {
             const urlParams = new URLSearchParams(window.location.search);
-            const pin = urlParams.get('pin');
+            const pin = urlParams.get("pin");
+
             if (pin) {
                 window.appState.urlPin = pin.toUpperCase();
-                navigate('loading_student');
+                window.navigate("loading_student");
             } else {
-                navigate('teacher_login');
+                window.navigate("teacher_login");
             }
         };
 
         const render = () => {
-            const container = document.getElementById('app-content');
-            container.innerHTML = '';
+            const container = document.getElementById("app-content");
+            container.innerHTML = "";
 
             switch (window.appState.view) {
-                case 'teacher_login':
+                case "teacher_login":
                     container.innerHTML = `
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10 border-t-4 border-indigo-600 animate-fade-in">
                             <h2 class="text-2xl font-black text-gray-800 mb-2">Panel del Profesor</h2>
-                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu contraseña para acceder al sistema de producción.</p>
-                            <input type="password" id="teacher-pwd" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-indigo-500 mb-4" placeholder="Contraseña">
-                            <button onclick="window.loginTeacher()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
+                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu contraseña para acceder al sistema.</p>
+
+                            <input
+                                type="password"
+                                id="teacher-pwd"
+                                class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-indigo-500 mb-4"
+                                placeholder="Contraseña"
+                            >
+
+                            <button
+                                onclick="window.loginTeacher()"
+                                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
                                 Ingresar
                             </button>
                         </div>
                     `;
                     break;
-                case 'teacher_dashboard':
+
+                case "teacher_dashboard":
                     renderTeacherDashboardHTML(container);
                     renderTeacherDashboard();
                     break;
-                case 'loading_student':
+
+                case "loading_student":
                     container.innerHTML = `
                         <div class="flex flex-col items-center justify-center mt-20">
                             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
@@ -142,43 +181,76 @@
                         </div>
                     `;
                     break;
-                case 'student_name':
+
+                case "student_name":
                     container.innerHTML = `
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10 border-t-4 border-green-500 animate-fade-in">
                             <div class="text-center mb-6">
-                                <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">Evaluación en Vivo</span>
+                                <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
+                                    Evaluación en Vivo
+                                </span>
                             </div>
-                            <h2 class="text-2xl font-bold text-gray-800 mb-2">${window.appState.currentQuiz.topic}</h2>
-                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu nombre para iniciar la prueba registrada.</p>
-                            
-                            <label class="block text-gray-700 text-sm font-bold mb-2">Nombre Completo</label>
-                            <input type="text" id="student-name-input" class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-green-500 mb-6" placeholder="Ej. Juan Pérez">
-                            
-                            <button onclick="window.startQuizProcess()" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
+
+                            <h2 class="text-2xl font-bold text-gray-800 mb-2">
+                                ${escapeHTML(window.appState.currentQuiz.topic)}
+                            </h2>
+
+                            <p class="text-gray-500 mb-6 text-sm">
+                                Ingresa tu nombre para iniciar la prueba registrada.
+                            </p>
+
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                Nombre Completo
+                            </label>
+
+                            <input
+                                type="text"
+                                id="student-name-input"
+                                class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-green-500 mb-6"
+                                placeholder="Ej. Juan Pérez"
+                            >
+
+                            <button
+                                onclick="window.startQuizProcess()"
+                                class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
                                 Iniciar Prueba
                             </button>
                         </div>
                     `;
                     break;
-                case 'taking_quiz':
+
+                case "taking_quiz":
                     renderTakingQuiz(container);
                     break;
-                case 'quiz_result':
+
+                case "quiz_result":
                     container.innerHTML = `
                         <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl text-center mt-10 animate-fade-in border-t-4 border-blue-500">
                             <div class="text-6xl mb-4">🏆</div>
-                            <h2 class="text-3xl font-bold text-gray-800 mb-2">¡Prueba Finalizada!</h2>
-                            <p class="text-gray-600 text-lg mb-6">${window.appState.studentName}</p>
-                            
+
+                            <h2 class="text-3xl font-bold text-gray-800 mb-2">
+                                ¡Prueba Finalizada!
+                            </h2>
+
+                            <p class="text-gray-600 text-lg mb-6">
+                                ${escapeHTML(window.appState.studentName)}
+                            </p>
+
                             <div class="bg-gray-50 rounded-xl p-6 mb-6 border border-gray-100">
-                                <p class="text-sm text-gray-500 uppercase font-bold mb-2">Puntaje Oficial</p>
+                                <p class="text-sm text-gray-500 uppercase font-bold mb-2">
+                                    Puntaje Oficial
+                                </p>
+
                                 <span class="block text-5xl font-black text-indigo-600">
-                                    ${window.appState.studentScore} <span class="text-2xl text-gray-400">/ ${window.appState.currentQuiz.questions.length}</span>
+                                    ${window.appState.studentScore}
+                                    <span class="text-2xl text-gray-400">
+                                        / ${window.appState.currentQuiz.questions.length}
+                                    </span>
                                 </span>
                             </div>
 
                             <p class="text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
-                                Tus respuestas han sido enviadas exitosamente al sistema del profesor. Ya puedes cerrar esta ventana.
+                                Tus respuestas han sido enviadas exitosamente al sistema del profesor.
                             </p>
                         </div>
                     `;
@@ -186,15 +258,16 @@
             }
         };
 
-        // --- LÓGICA DEL PROFESOR ---
-
+        // ======================================================
+        // 👨‍🏫 PROFESOR
+        // ======================================================
         window.loginTeacher = () => {
-            const pwd = document.getElementById('teacher-pwd').value;
-            // CONTRASEÑA DE PRODUCCIÓN: norlan22
-            if (pwd === 'norlan22') {
-                navigate('teacher_dashboard');
+            const pwd = document.getElementById("teacher-pwd").value;
+
+            if (pwd === "norlan22") {
+                window.navigate("teacher_dashboard");
             } else {
-                showToast('Contraseña incorrecta', 'error');
+                showToast("Contraseña incorrecta", "error");
             }
         };
 
@@ -204,18 +277,32 @@
                     <div class="bg-white p-8 rounded-2xl shadow-lg mb-8 border border-gray-100">
                         <div class="flex items-center gap-3 mb-6">
                             <div class="bg-indigo-100 p-3 rounded-lg text-indigo-600">
-                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                                🤖
                             </div>
-                            <h2 class="text-2xl font-black text-gray-800">Generador IA (Producción)</h2>
+
+                            <h2 class="text-2xl font-black text-gray-800">
+                                Generador IA con Mistral
+                            </h2>
                         </div>
-                        
+
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-gray-700 text-sm font-bold mb-2">Instrucciones para la Inteligencia Artificial</label>
-                                <textarea id="quiz-prompt" rows="3" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50" placeholder="Ej. Genera 10 problemas de matemáticas avanzadas."></textarea>
+                                <label class="block text-gray-700 text-sm font-bold mb-2">
+                                    Instrucciones para la Inteligencia Artificial
+                                </label>
+
+                                <textarea
+                                    id="quiz-prompt"
+                                    rows="3"
+                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50"
+                                    placeholder="Ej. Genera 10 preguntas de matemáticas sobre fracciones."></textarea>
                             </div>
+
                             <div class="flex justify-end">
-                                <button id="btn-generate" onclick="window.generateQuizWithAI()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition flex items-center justify-center gap-2">
+                                <button
+                                    id="btn-generate"
+                                    onclick="window.generateQuizWithAI()"
+                                    class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition flex items-center justify-center gap-2">
                                     Generar Prueba Oficial
                                 </button>
                             </div>
@@ -223,7 +310,10 @@
                     </div>
 
                     <div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-4 px-2">Base de Datos de Pruebas</h2>
+                        <h2 class="text-xl font-bold text-gray-800 mb-4 px-2">
+                            Base de Datos de Pruebas
+                        </h2>
+
                         <div id="quizzes-list" class="grid grid-cols-1 gap-4">
                             <div class="animate-pulse flex space-x-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                                 <div class="flex-1 space-y-4 py-1">
@@ -238,77 +328,109 @@
         };
 
         const renderTeacherDashboard = () => {
-            if (window.appState.view !== 'teacher_dashboard') return;
-            const listContainer = document.getElementById('quizzes-list');
+            if (window.appState.view !== "teacher_dashboard") return;
+
+            const listContainer = document.getElementById("quizzes-list");
             if (!listContainer) return;
 
             if (quizzes.length === 0) {
                 listContainer.innerHTML = `
                     <div class="bg-white rounded-xl p-8 text-center border border-dashed border-gray-300">
-                        <p class="text-gray-500">No hay pruebas registradas en la base de datos.</p>
-                    </div>`;
+                        <p class="text-gray-500">
+                            No hay pruebas registradas en la base de datos.
+                        </p>
+                    </div>
+                `;
                 return;
             }
 
             const sortedQuizzes = [...quizzes].sort((a, b) => b.createdAt - a.createdAt);
 
-            listContainer.innerHTML = sortedQuizzes.map(quiz => {
-                const quizResults = allResults.filter(r => r.quizId === quiz.id);
-                
+            listContainer.innerHTML = sortedQuizzes.map((quiz) => {
+                const quizResults = allResults.filter((r) => r.quizId === quiz.id);
+
                 return `
                     <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
                         <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                            
+
                             <div class="flex-1">
-                                <h3 class="font-bold text-gray-800 text-lg mb-1">${quiz.topic}</h3>
+                                <h3 class="font-bold text-gray-800 text-lg mb-1">
+                                    ${escapeHTML(quiz.topic)}
+                                </h3>
+
                                 <div class="flex flex-wrap items-center gap-3 text-sm text-gray-500">
-                                    <span class="font-semibold text-gray-700">${quiz.questions.length} Preguntas</span>
+                                    <span class="font-semibold text-gray-700">
+                                        ${quiz.questions.length} Preguntas
+                                    </span>
+
                                     <span>•</span>
-                                    <span class="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded">PIN: ${quiz.pin}</span>
+
+                                    <span class="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded">
+                                        PIN: ${escapeHTML(quiz.pin)}
+                                    </span>
+
                                     <span>•</span>
-                                    <span>${new Date(quiz.createdAt).toLocaleDateString()}</span>
+
+                                    <span>
+                                        ${new Date(quiz.createdAt).toLocaleDateString()}
+                                    </span>
                                 </div>
                             </div>
 
                             <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-100">
-                                
+
                                 <div class="text-center px-4 border-r border-gray-200 hidden sm:block">
-                                    <span class="block text-2xl font-black text-gray-800">${quizResults.length}</span>
-                                    <span class="text-xs text-gray-500 uppercase tracking-wide">Entregas</span>
+                                    <span class="block text-2xl font-black text-gray-800">
+                                        ${quizResults.length}
+                                    </span>
+
+                                    <span class="text-xs text-gray-500 uppercase tracking-wide">
+                                        Entregas
+                                    </span>
                                 </div>
 
-                                <button onclick="window.copyStudentLink('${quiz.pin}')" class="flex-1 lg:flex-none bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2">
+                                <button
+                                    onclick="window.copyStudentLink('${quiz.pin}')"
+                                    class="flex-1 lg:flex-none bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 font-medium py-2 px-4 rounded-lg transition">
                                     Copiar Enlace
                                 </button>
 
-                                <button onclick="window.downloadExcel('${quiz.id}', '${quiz.topic}')" ${quizResults.length === 0 ? 'disabled' : ''} class="flex-1 lg:flex-none bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition flex items-center justify-center gap-2">
+                                <button
+                                    onclick="window.downloadExcel('${quiz.id}', '${escapeAttribute(quiz.topic)}')"
+                                    ${quizResults.length === 0 ? "disabled" : ""}
+                                    class="flex-1 lg:flex-none bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition">
                                     Descargar Excel
                                 </button>
-
                             </div>
                         </div>
                     </div>
                 `;
-            }).join('');
+            }).join("");
         };
 
         window.copyStudentLink = (pin) => {
             const baseUrl = window.location.origin + window.location.pathname;
             const link = `${baseUrl}?pin=${pin}`;
 
-            const tempInput = document.createElement("input");
-            tempInput.value = link;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand("copy");
-            document.body.removeChild(tempInput);
-
-            showToast("Enlace de producción copiado", "success");
+            navigator.clipboard.writeText(link)
+                .then(() => showToast("Enlace copiado", "success"))
+                .catch(() => {
+                    const tempInput = document.createElement("input");
+                    tempInput.value = link;
+                    document.body.appendChild(tempInput);
+                    tempInput.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(tempInput);
+                    showToast("Enlace copiado", "success");
+                });
         };
 
+        // ======================================================
+        // 🤖 GENERAR PRUEBA CON MISTRAL
+        // ======================================================
         window.generateQuizWithAI = async () => {
-            const promptInput = document.getElementById('quiz-prompt');
-            const btn = document.getElementById('btn-generate');
+            const promptInput = document.getElementById("quiz-prompt");
+            const btn = document.getElementById("btn-generate");
             const topic = promptInput.value.trim();
 
             if (!topic) {
@@ -316,49 +438,115 @@
                 return;
             }
 
+            if (!MISTRAL_API_KEY || MISTRAL_API_KEY === "PEGA_TU_API_KEY_AQUI") {
+                showToast("Falta poner tu API Key de Mistral en el código.", "error");
+                return;
+            }
+
             btn.disabled = true;
-            btn.innerHTML = `Conectando con IA...`;
+            btn.innerHTML = "Generando con Mistral...";
 
             try {
-                // Modelo estable público
-                const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
-                const systemPrompt = `Eres un creador de exámenes. Lee la solicitud del usuario y genera un quiz matemático.
-                IMPORTANTE: Adapta la cantidad de preguntas EXACTAMENTE a lo que el usuario pide.
-                DEVUELVE ESTRICTAMENTE JSON, SIN TEXTO ADICIONAL Y SIN ETIQUETAS COMO \`\`\`json. Estructura:
-                {
-                    "questions": [
-                        {
-                            "question": "Pregunta",
-                            "options": ["A", "B", "C", "D"],
-                            "correct_index": 0
-                        }
-                    ]
-                }
-                El correct_index debe ser el número (0-3) de la opción correcta.`;
+                const systemPrompt = `
+Eres un creador experto de exámenes escolares.
+
+Debes generar EXACTAMENTE la cantidad de preguntas que pida el usuario.
+
+Devuelve SOLAMENTE un objeto JSON válido.
+No uses markdown.
+No escribas explicación.
+No pongas texto antes ni después del JSON.
+
+Estructura obligatoria:
+
+{
+  "questions": [
+    {
+      "question": "Pregunta aquí",
+      "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
+      "correct_index": 0
+    }
+  ]
+}
+
+Reglas:
+- Cada pregunta debe tener 4 opciones.
+- correct_index debe ser 0, 1, 2 o 3.
+- La respuesta correcta debe coincidir con una opción.
+- No dejes preguntas vacías.
+                `;
 
                 const payload = {
-                    contents: [{ parts: [{ text: topic }] }],
-                    systemInstruction: { parts: [{ text: systemPrompt }] },
-                    generationConfig: { responseMimeType: "application/json" }
+                    model: "mistral-small-latest",
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: topic }
+                    ],
+                    temperature: 0.7,
+                    response_format: {
+                        type: "json_object"
+                    }
                 };
 
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                let response;
 
-                if (!response.ok) throw new Error("Error API IA");
+                try {
+                    response = await fetch(MISTRAL_ENDPOINT, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${MISTRAL_API_KEY}`
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) {
+                    throw new Error("ERROR DE RED: No se pudo conectar con Mistral. Revisa tu internet.");
+                }
 
                 const data = await response.json();
-                
-                // Limpieza de formato de IA
-                let jsonText = data.candidates[0].content.parts[0].text;
-                jsonText = jsonText.replace(/```json/gi, '').replace(/```/g, '').trim();
-                const quizData = JSON.parse(jsonText);
 
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'produccion-edutest';
-                const quizzesRef = collection(db, 'artifacts', appId, 'public', 'data', 'quizzes');
+                if (!response.ok) {
+                    console.error("Error Mistral:", data);
+                    throw new Error(
+                        "ERROR MISTRAL: " +
+                        (
+                            data.message ||
+                            data.error?.message ||
+                            "El servidor no respondió correctamente."
+                        )
+                    );
+                }
+
+                if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+                    console.error("Respuesta Mistral inválida:", data);
+                    throw new Error("ERROR MISTRAL: La IA no devolvió contenido válido.");
+                }
+
+                const textResponse = data.choices[0].message.content;
+                console.log("Respuesta Mistral:", textResponse);
+
+                let quizData;
+
+                try {
+                    const startIndex = textResponse.indexOf("{");
+                    const endIndex = textResponse.lastIndexOf("}");
+
+                    if (startIndex === -1 || endIndex === -1) {
+                        throw new Error("La IA no devolvió JSON.");
+                    }
+
+                    const jsonText = textResponse.substring(startIndex, endIndex + 1);
+                    quizData = JSON.parse(jsonText);
+
+                    validarQuiz(quizData);
+
+                } catch (e) {
+                    console.error("Respuesta cruda fallida:", textResponse);
+                    throw new Error("ERROR FORMATO IA: Mistral no estructuró bien las preguntas. Intenta otra vez.");
+                }
+
+                const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
+                const quizzesRef = collection(db, "artifacts", appId, "public", "data", "quizzes");
                 const pin = Math.random().toString(36).substring(2, 6).toUpperCase();
 
                 await addDoc(quizzesRef, {
@@ -368,105 +556,170 @@
                     createdAt: Date.now()
                 });
 
-                promptInput.value = '';
-                showToast("Prueba guardada en Base de Datos.", "success");
+                promptInput.value = "";
+                showToast("Prueba generada y guardada exitosamente.", "success");
 
             } catch (error) {
-                console.error("Detalle del Error:", error);
-                showToast("Fallo en la red o IA. Intenta de nuevo.", "error");
+                console.error("Detalle exacto del error:", error);
+                showToast(error.message, "error");
+
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = `Generar Prueba Oficial`;
+                btn.innerHTML = "Generar Prueba Oficial";
             }
         };
 
+        const validarQuiz = (quizData) => {
+            if (!quizData.questions || !Array.isArray(quizData.questions)) {
+                throw new Error("El JSON no tiene questions.");
+            }
+
+            if (quizData.questions.length === 0) {
+                throw new Error("No se generaron preguntas.");
+            }
+
+            quizData.questions.forEach((q, index) => {
+                if (!q.question || typeof q.question !== "string") {
+                    throw new Error(`Pregunta ${index + 1} inválida.`);
+                }
+
+                if (!Array.isArray(q.options) || q.options.length !== 4) {
+                    throw new Error(`Pregunta ${index + 1} no tiene 4 opciones.`);
+                }
+
+                if (
+                    typeof q.correct_index !== "number" ||
+                    q.correct_index < 0 ||
+                    q.correct_index > 3
+                ) {
+                    throw new Error(`Pregunta ${index + 1} tiene correct_index inválido.`);
+                }
+            });
+        };
+
+        // ======================================================
+        // 📊 EXCEL
+        // ======================================================
         window.downloadExcel = (quizId, quizTopic) => {
-            const quizResults = allResults.filter(r => r.quizId === quizId);
-            
-            const excelData = quizResults.map(r => ({
-                'Estudiante': r.studentName,
-                'Respuestas Correctas': r.score,
-                'Total Preguntas': r.totalQuestions,
-                'Calificación (%)': ((r.score / r.totalQuestions) * 100).toFixed(0) + '%',
-                'Fecha': new Date(r.timestamp).toLocaleString()
+            const quizResults = allResults.filter((r) => r.quizId === quizId);
+
+            const excelData = quizResults.map((r) => ({
+                "Estudiante": r.studentName,
+                "Respuestas Correctas": r.score,
+                "Total Preguntas": r.totalQuestions,
+                "Calificación (%)": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
+                "Fecha": new Date(r.timestamp).toLocaleString()
             }));
 
             const ws = XLSX.utils.json_to_sheet(excelData);
-            ws['!cols'] = [{wch: 30}, {wch: 20}, {wch: 15}, {wch: 15}, {wch: 25}];
+            ws["!cols"] = [
+                { wch: 30 },
+                { wch: 20 },
+                { wch: 15 },
+                { wch: 15 },
+                { wch: 25 }
+            ];
+
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Resultados");
-            
-            const cleanTopic = quizTopic.substring(0, 15).replace(/[^a-z0-9]/gi, '');
+
+            const cleanTopic = quizTopic.substring(0, 15).replace(/[^a-z0-9]/gi, "");
             XLSX.writeFile(wb, `Reporte_Oficial_${cleanTopic}.xlsx`);
         };
 
-        // --- LÓGICA DEL ESTUDIANTE ---
-
+        // ======================================================
+        // 👨‍🎓 ESTUDIANTE
+        // ======================================================
         const startStudentView = () => {
             const pin = window.appState.urlPin;
-            const quiz = quizzes.find(q => q.pin === pin);
+            const quiz = quizzes.find((q) => q.pin === pin);
 
             if (quiz) {
                 window.appState.currentQuiz = quiz;
-                navigate('student_name');
+                window.navigate("student_name");
             } else if (quizzes.length > 0) {
-                document.getElementById('app-content').innerHTML = `
+                document.getElementById("app-content").innerHTML = `
                     <div class="max-w-md mx-auto text-center mt-20 p-6 bg-white rounded-xl shadow-lg border-t-4 border-red-500">
-                        <h2 class="text-xl font-bold text-gray-800">Enlace No Válido</h2>
-                        <p class="text-gray-500 mt-2">Esta prueba no se encuentra en el servidor.</p>
+                        <h2 class="text-xl font-bold text-gray-800">
+                            Enlace No Válido
+                        </h2>
+
+                        <p class="text-gray-500 mt-2">
+                            Esta prueba no se encuentra en el servidor o el PIN es incorrecto.
+                        </p>
                     </div>
                 `;
             }
         };
 
         window.startQuizProcess = () => {
-            const name = document.getElementById('student-name-input').value.trim();
+            const name = document.getElementById("student-name-input").value.trim();
+
             if (!name) {
                 showToast("Debes ingresar tu nombre.", "error");
                 return;
             }
+
             window.appState.studentName = name;
-            navigate('taking_quiz');
+            window.navigate("taking_quiz");
         };
 
         const renderTakingQuiz = (container) => {
             const quiz = window.appState.currentQuiz;
-            
+
             let questionsHTML = quiz.questions.map((q, qIndex) => {
                 const optionsHTML = q.options.map((opt, oIndex) => `
-                    <label class="block p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-green-50 transition peer-checked:border-green-500 peer-checked:bg-green-50">
+                    <label class="block p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-green-50 transition">
                         <div class="flex items-center">
-                            <input type="radio" name="q_${qIndex}" value="${oIndex}" class="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500">
-                            <span class="ml-4 text-gray-700 font-medium">${opt}</span>
+                            <input
+                                type="radio"
+                                name="q_${qIndex}"
+                                value="${oIndex}"
+                                class="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500"
+                            >
+
+                            <span class="ml-4 text-gray-700 font-medium">
+                                ${escapeHTML(opt)}
+                            </span>
                         </div>
                     </label>
-                `).join('');
+                `).join("");
 
                 return `
                     <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                        <h3 class="text-lg font-bold text-gray-800 mb-6"><span class="text-green-500">${qIndex + 1}.</span> ${q.question}</h3>
+                        <h3 class="text-lg font-bold text-gray-800 mb-6">
+                            <span class="text-green-500">${qIndex + 1}.</span>
+                            ${escapeHTML(q.question)}
+                        </h3>
+
                         <div class="space-y-3">
                             ${optionsHTML}
                         </div>
                     </div>
                 `;
-            }).join('');
+            }).join("");
 
             container.innerHTML = `
                 <div class="max-w-3xl mx-auto animate-fade-in pb-10">
                     <div class="bg-green-600 text-white p-6 rounded-2xl shadow-lg mb-8 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-4 z-20">
                         <div>
-                            <h2 class="text-xl font-bold">${quiz.topic}</h2>
+                            <h2 class="text-xl font-bold">
+                                ${escapeHTML(quiz.topic)}
+                            </h2>
                         </div>
+
                         <div class="bg-white/20 px-4 py-2 rounded-lg font-bold backdrop-blur-sm">
-                            ${window.appState.studentName}
+                            ${escapeHTML(window.appState.studentName)}
                         </div>
                     </div>
 
                     <form id="quiz-form" onsubmit="event.preventDefault(); window.submitQuiz();">
                         ${questionsHTML}
-                        
-                        <button type="submit" id="btn-submit-quiz" class="w-full mt-4 bg-gray-800 hover:bg-gray-900 text-white font-bold py-5 rounded-2xl shadow-xl transition transform hover:scale-[1.02] text-xl">
+
+                        <button
+                            type="submit"
+                            id="btn-submit-quiz"
+                            class="w-full mt-4 bg-gray-800 hover:bg-gray-900 text-white font-bold py-5 rounded-2xl shadow-xl transition transform hover:scale-[1.02] text-xl">
                             Enviar y Finalizar Prueba
                         </button>
                     </form>
@@ -476,28 +729,31 @@
 
         window.submitQuiz = async () => {
             const quiz = window.appState.currentQuiz;
-            const form = document.getElementById('quiz-form');
-            const btn = document.getElementById('btn-submit-quiz');
+            const form = document.getElementById("quiz-form");
+            const btn = document.getElementById("btn-submit-quiz");
+
             let score = 0;
 
             for (let i = 0; i < quiz.questions.length; i++) {
-                const selected = form.elements[`q_${i}`].value;
-                if (selected === "") {
+                const selected = form.querySelector(`input[name="q_${i}"]:checked`);
+
+                if (!selected) {
                     showToast(`Responde la pregunta ${i + 1}`, "error");
                     return;
                 }
-                if (parseInt(selected) === quiz.questions[i].correct_index) {
+
+                if (parseInt(selected.value) === quiz.questions[i].correct_index) {
                     score++;
                 }
             }
 
             btn.disabled = true;
-            btn.innerHTML = `Enviando a la base de datos...`;
+            btn.innerHTML = "Enviando a la base de datos...";
 
             try {
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'produccion-edutest';
-                const resultsRef = collection(db, 'artifacts', appId, 'public', 'data', 'results');
-                
+                const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
+                const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
+
                 await addDoc(resultsRef, {
                     quizId: quiz.id,
                     studentName: window.appState.studentName,
@@ -507,55 +763,105 @@
                 });
 
                 window.appState.studentScore = score;
-                navigate('quiz_result');
+                window.navigate("quiz_result");
 
             } catch (error) {
                 console.error(error);
-                showToast("Error de conexión al enviar.", "error");
+                showToast("Error de conexión al enviar. Intenta de nuevo.", "error");
                 btn.disabled = false;
-                btn.innerHTML = `Enviar y Finalizar Prueba`;
+                btn.innerHTML = "Enviar y Finalizar Prueba";
             }
         };
 
-        // --- UTILIDADES ---
-        const showToast = (message, type = 'info') => {
-            const toast = document.createElement('div');
-            const bgColor = type === 'error' ? 'bg-red-500' : 'bg-green-500';
-            toast.className = `fixed bottom-6 left-1/2 transform -translate-x-1/2 ${bgColor} text-white px-6 py-3 rounded-full shadow-2xl font-medium z-50 transition-all duration-300 translate-y-10 opacity-0`;
+        // ======================================================
+        // 🧰 UTILIDADES
+        // ======================================================
+        const showToast = (message, type = "info") => {
+            const toast = document.createElement("div");
+            const bgColor = type === "error" ? "bg-red-500" : "bg-green-500";
+
+            toast.className = `
+                fixed bottom-6 left-1/2 transform -translate-x-1/2
+                w-[90%] max-w-md ${bgColor} text-white px-6 py-4
+                rounded-xl shadow-2xl font-medium z-50 transition-all
+                duration-300 translate-y-20 opacity-0 break-words
+                text-sm sm:text-base
+            `;
+
             toast.textContent = message;
             document.body.appendChild(toast);
-            
-            setTimeout(() => toast.classList.remove('translate-y-10', 'opacity-0'), 10);
+
             setTimeout(() => {
-                toast.classList.add('translate-y-10', 'opacity-0');
+                toast.classList.remove("translate-y-20", "opacity-0");
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add("translate-y-20", "opacity-0");
                 setTimeout(() => toast.remove(), 300);
-            }, 3000);
+            }, 6000);
+        };
+
+        const escapeHTML = (value) => {
+            return String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        };
+
+        const escapeAttribute = (value) => {
+            return String(value ?? "")
+                .replaceAll("\\", "\\\\")
+                .replaceAll("'", "\\'")
+                .replaceAll('"', "&quot;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;");
         };
 
         window.onload = () => {
             initFirebase();
             checkRouting();
         };
-
     </script>
+
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        body {
+            font-family: Inter, system-ui, sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
+
 <body class="min-h-screen flex flex-col">
-    
+
     <header class="bg-white shadow-sm border-b border-gray-100 z-30">
         <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-center">
-            <h1 class="text-xl font-black text-gray-800">EduTest <span class="text-indigo-600">Pro</span></h1>
+            <h1 class="text-xl font-black text-gray-800">
+                EduTest <span class="text-indigo-600">Pro</span>
+            </h1>
         </div>
     </header>
 
     <main id="app-content" class="flex-grow w-full px-4 py-8 relative">
-        <!-- Contenido -->
+        <!-- Contenido dinámico -->
     </main>
 
 </body>
 </html>
-
