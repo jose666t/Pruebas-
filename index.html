@@ -348,6 +348,7 @@
                                 placeholder="Ej. Ana Martínez"
                                 onkeypress="if(event.key === 'Enter') window.startQuizProcess()"
                             >
+                            <p class="text-xs text-slate-400 mt-2">* Escribe un nombre real (mínimo 3 letras).</p>
                         </div>
 
                         <button
@@ -510,13 +511,11 @@
             lucide.createIcons();
         };
 
-        // --- NUEVA FUNCIÓN: VISOR DE CALIFICACIONES EN VIVO ---
         window.viewResults = (quizId, quizTopic, isUpdate = false) => {
             window.currentViewedQuizId = quizId;
             window.currentViewedQuizTopic = quizTopic;
 
             const quizResults = allResults.filter((r) => r.quizId === quizId).sort((a, b) => {
-                // Ordenar por nota de mayor a menor
                 const ptsA = a.earnedPoints ?? a.score;
                 const ptsB = b.earnedPoints ?? b.score;
                 return ptsB - ptsA;
@@ -553,7 +552,6 @@
                                     const aciertos = r.correctCount ?? r.score;
                                     const calificacion = ((ptsObtenidos / maxPts) * 100);
                                     
-                                    // Color dependiendo de la nota
                                     let badgeColor = "bg-green-100 text-green-700";
                                     if(calificacion < 60) badgeColor = "bg-red-100 text-red-700";
                                     else if(calificacion < 80) badgeColor = "bg-yellow-100 text-yellow-700";
@@ -591,7 +589,6 @@
             }
 
             if (isUpdate) {
-                // Si solo estamos actualizando (Live Reload), reemplazamos solo el contenido interno
                 const container = document.getElementById('modal-content-body');
                 if (container) {
                     container.innerHTML = resultsHTML;
@@ -600,7 +597,6 @@
                 return;
             }
 
-            // Crear el modal desde cero
             const modalOverlay = document.createElement('div');
             modalOverlay.id = 'results-modal';
             modalOverlay.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4';
@@ -642,7 +638,6 @@
             document.body.appendChild(modalOverlay);
             lucide.createIcons();
             
-            // Cerrar al dar clic fuera del cuadro blanco
             modalOverlay.addEventListener('click', (e) => {
                 if (e.target === modalOverlay) window.closeModal();
             });
@@ -656,7 +651,6 @@
                 window.currentViewedQuizTopic = null;
             }
         };
-        // ----------------------------------------------------
 
         window.copyStudentLink = (pin) => {
             const baseUrl = window.location.origin + window.location.pathname;
@@ -697,7 +691,7 @@
                 await deleteDoc(quizDocRef);
 
                 showToast("Evaluación eliminada correctamente.", "success");
-                window.closeModal(); // Por si tenía el modal abierto de esa prueba
+                window.closeModal(); 
             } catch (error) {
                 console.error(error);
                 showToast("Error al eliminar: " + error.message, "error");
@@ -894,12 +888,32 @@ Notas extra: ${extra || "Ninguna"}.`;
             }
         };
 
+        // --- NUEVA VALIDACIÓN ESTRICTA DEL NOMBRE ---
         window.startQuizProcess = () => {
-            const name = document.getElementById("student-name-input").value.trim();
-            if (!name) return showToast("Tu nombre es obligatorio para continuar.", "error");
+            const nameInput = document.getElementById("student-name-input").value;
+            const name = nameInput.trim();
+            
+            // 1. Que no esté vacío
+            if (!name) {
+                return showToast("Tu nombre es obligatorio para continuar.", "error");
+            }
+            
+            // 2. Que tenga al menos 3 caracteres
+            if (name.length < 3) {
+                return showToast("Por favor, ingresa un nombre válido (mínimo 3 letras).", "error");
+            }
+
+            // 3. Que contenga letras reales (bloquea "123", "...", "-.-", etc.)
+            // Busca cualquier letra de la A a la Z (mayúscula, minúscula, con tilde o la Ñ)
+            const lettersCount = (name.match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g) || []).length;
+            if (lettersCount < 2) {
+                return showToast("El nombre debe contener letras, no solo símbolos o números.", "error");
+            }
+
             window.appState.studentName = name;
             window.navigate("taking_quiz");
         };
+        // ---------------------------------------------
 
         const renderTakingQuiz = (container) => {
             const quiz = window.appState.currentQuiz;
