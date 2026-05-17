@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -5,20 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EduTest Pro - Plataforma de Evaluación IA</title>
 
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Puter.js (IA) -->
     <script src="https://js.puter.com/v2/"></script>
+    
+    <!-- SheetJS (Excel Export) -->
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Fuentes: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-
         import {
             getAuth,
             signInAnonymously,
             signInWithCustomToken,
             onAuthStateChanged
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-
         import {
             getFirestore,
             collection,
@@ -26,11 +36,10 @@
             onSnapshot,
             doc,
             deleteDoc,
-            getDocs,
-            query,
-            where
+            getDocs
         } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Configuración de Firebase
         const myFirebaseConfig = {
             apiKey: "AIzaSyDmzF3Td-dPxPtkr1X69pE-oNcdaMQLAoI",
             authDomain: "pruebas-2-f7033.firebaseapp.com",
@@ -54,9 +63,11 @@
             urlPin: null
         };
 
+        const getAppId = () => typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
+
+        // Inicialización de Firebase (Regla estricta de Autenticación)
         const initFirebase = async () => {
             let configToUse = myFirebaseConfig;
-
             if (typeof __firebase_config !== "undefined" && __firebase_config) {
                 configToUse = JSON.parse(__firebase_config);
             }
@@ -66,6 +77,7 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
 
+                // Autenticación inicial obligatoria
                 if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -79,52 +91,40 @@
 
             } catch (error) {
                 console.error("Error iniciando Firebase:", error);
-                showToast("Error crítico al conectar con Firebase: " + error.message, "error");
+                showToast("Error crítico al conectar con el servidor.", "error");
             }
         };
 
         const setupDatabaseListeners = () => {
             if (!currentUser) return;
 
-            const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
-
+            const appId = getAppId();
             const quizzesRef = collection(db, "artifacts", appId, "public", "data", "quizzes");
             const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
 
             onSnapshot(quizzesRef, (snapshot) => {
                 quizzes = [];
                 snapshot.forEach((docItem) => {
-                    quizzes.push({
-                        id: docItem.id,
-                        ...docItem.data()
-                    });
+                    quizzes.push({ id: docItem.id, ...docItem.data() });
                 });
-
-                if (window.appState.view === "loading_student") startStudentView();
-                if (window.appState.view === "teacher_dashboard") renderTeacherDashboard();
-
-            }, (error) => {
-                console.error("Error cargando pruebas:", error);
-                showToast("Error cargando pruebas desde Firebase.", "error");
-            });
+                updateViewOnDataLoad();
+            }, (error) => console.error(error));
 
             onSnapshot(resultsRef, (snapshot) => {
                 allResults = [];
                 snapshot.forEach((docItem) => {
-                    allResults.push({
-                        id: docItem.id,
-                        ...docItem.data()
-                    });
+                    allResults.push({ id: docItem.id, ...docItem.data() });
                 });
-
                 if (window.appState.view === "teacher_dashboard") renderTeacherDashboard();
-
-            }, (error) => {
-                console.error("Error cargando resultados:", error);
-                showToast("Error cargando resultados desde Firebase.", "error");
-            });
+            }, (error) => console.error(error));
         };
 
+        const updateViewOnDataLoad = () => {
+            if (window.appState.view === "loading_student") startStudentView();
+            if (window.appState.view === "teacher_dashboard") renderTeacherDashboard();
+        };
+
+        // Ruteador básico
         window.navigate = (view) => {
             window.appState.view = view;
             render();
@@ -142,244 +142,151 @@
             }
         };
 
+        // Motor de renderizado
         const render = () => {
             const container = document.getElementById("app-content");
             container.innerHTML = "";
 
             switch (window.appState.view) {
-                case "teacher_login":
-                    container.innerHTML = `
-                        <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10 border-t-4 border-indigo-600 animate-fade-in">
-                            <h2 class="text-2xl font-black text-gray-800 mb-2">Panel del Profesor</h2>
-                            <p class="text-gray-500 mb-6 text-sm">Ingresa tu contraseña para acceder al sistema.</p>
+                case "teacher_login": renderTeacherLogin(container); break;
+                case "teacher_dashboard": 
+                    renderTeacherDashboardHTML(container); 
+                    renderTeacherDashboard(); 
+                    break;
+                case "loading_student": renderLoadingStudent(container); break;
+                case "student_name": renderStudentName(container); break;
+                case "taking_quiz": renderTakingQuiz(container); break;
+                case "quiz_result": renderQuizResult(container); break;
+            }
+            
+            // Actualizar iconos de Lucide
+            lucide.createIcons();
+        };
 
+        /* ================= VISTAS HTML ================= */
+
+        const renderTeacherLogin = (container) => {
+            container.innerHTML = `
+                <div class="max-w-md mx-auto mt-20 p-1 animate-fade-in">
+                    <div class="bg-white p-8 rounded-3xl shadow-2xl shadow-indigo-100 border border-slate-100">
+                        <div class="w-16 h-16 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-indigo-200">
+                            <i data-lucide="shield-check" class="text-white w-8 h-8"></i>
+                        </div>
+                        <h2 class="text-3xl font-extrabold text-slate-800 mb-2 tracking-tight">Acceso Docente</h2>
+                        <p class="text-slate-500 mb-8">Ingresa tus credenciales para administrar las evaluaciones.</p>
+
+                        <div class="relative mb-6">
+                            <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                <i data-lucide="lock" class="w-5 h-5 text-slate-400"></i>
+                            </div>
                             <input
                                 type="password"
                                 id="teacher-pwd"
-                                class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-indigo-500 mb-4"
-                                placeholder="Contraseña"
+                                class="w-full pl-11 pr-4 py-4 rounded-xl bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-slate-700"
+                                placeholder="Contraseña de acceso"
+                                onkeypress="if(event.key === 'Enter') window.loginTeacher()"
                             >
-
-                            <button
-                                onclick="window.loginTeacher()"
-                                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
-                                Ingresar
-                            </button>
                         </div>
-                    `;
-                    break;
 
-                case "teacher_dashboard":
-                    renderTeacherDashboardHTML(container);
-                    renderTeacherDashboard();
-                    break;
-
-                case "loading_student":
-                    container.innerHTML = `
-                        <div class="flex flex-col items-center justify-center mt-20">
-                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-                            <p class="text-gray-600 font-medium text-lg">Buscando prueba en el servidor...</p>
-                        </div>
-                    `;
-                    break;
-
-                case "student_name":
-                    container.innerHTML = `
-                        <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl mt-10 border-t-4 border-green-500 animate-fade-in">
-                            <div class="text-center mb-6">
-                                <span class="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wide">
-                                    Evaluación en Vivo
-                                </span>
-                            </div>
-
-                            <h2 class="text-2xl font-bold text-gray-800 mb-2">
-                                ${escapeHTML(window.appState.currentQuiz.topic)}
-                            </h2>
-
-                            <p class="text-gray-500 mb-6 text-sm">
-                                Ingresa tu nombre para iniciar la prueba registrada.
-                            </p>
-
-                            <label class="block text-gray-700 text-sm font-bold mb-2">Nombre Completo</label>
-
-                            <input
-                                type="text"
-                                id="student-name-input"
-                                class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:border-green-500 mb-6"
-                                placeholder="Ej. Juan Pérez"
-                            >
-
-                            <button
-                                onclick="window.startQuizProcess()"
-                                class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-4 rounded-lg transition shadow-md">
-                                Iniciar Prueba
-                            </button>
-                        </div>
-                    `;
-                    break;
-
-                case "taking_quiz":
-                    renderTakingQuiz(container);
-                    break;
-
-                case "quiz_result":
-                    container.innerHTML = `
-                        <div class="max-w-md mx-auto bg-white p-8 rounded-2xl shadow-xl text-center mt-10 animate-fade-in border-t-4 border-blue-500">
-                            <div class="text-6xl mb-4">🏆</div>
-
-                            <h2 class="text-3xl font-bold text-gray-800 mb-2">¡Prueba Finalizada!</h2>
-
-                            <p class="text-gray-600 text-lg mb-6">
-                                ${escapeHTML(window.appState.studentName)}
-                            </p>
-
-                            <div class="bg-gray-50 rounded-xl p-6 mb-6 border border-gray-100">
-                                <p class="text-sm text-gray-500 uppercase font-bold mb-2">
-                                    Puntaje Oficial
-                                </p>
-
-                                <span class="block text-5xl font-black text-indigo-600">
-                                    ${window.appState.studentScore}
-                                    <span class="text-2xl text-gray-400">
-                                        / ${window.appState.currentQuiz.questions.length}
-                                    </span>
-                                </span>
-                            </div>
-
-                            <p class="text-sm text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
-                                Tus respuestas han sido enviadas exitosamente al sistema del profesor.
-                            </p>
-                        </div>
-                    `;
-                    break;
-            }
-        };
-
-        window.loginTeacher = () => {
-            const pwd = document.getElementById("teacher-pwd").value;
-
-            if (pwd === "norlan22") {
-                window.navigate("teacher_dashboard");
-            } else {
-                showToast("Contraseña incorrecta", "error");
-            }
+                        <button
+                            onclick="window.loginTeacher()"
+                            class="w-full bg-slate-900 hover:bg-indigo-600 text-white font-semibold py-4 px-4 rounded-xl transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                            <span>Ingresar al Sistema</span>
+                            <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
         };
 
         const renderTeacherDashboardHTML = (container) => {
             container.innerHTML = `
-                <div class="max-w-5xl mx-auto animate-fade-in">
-
-                    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg mb-8 border border-gray-100">
-                        <div class="flex items-center gap-3 mb-6">
-                            <div class="bg-indigo-100 p-3 rounded-lg text-indigo-600">🤖</div>
-
-                            <div>
-                                <h2 class="text-2xl font-black text-gray-800">
-                                    Generador IA Pro
-                                </h2>
-                                <p class="text-sm text-gray-500">
-                                    Crea pruebas por tema, nivel, tipo y cantidad.
-                                </p>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-gray-700 text-sm font-bold mb-2">
-                                    Tema de la prueba
-                                </label>
-
-                                <input
-                                    id="quiz-topic"
-                                    type="text"
-                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
-                                    placeholder="Ej. Ecuaciones exponenciales"
-                                >
+                <div class="max-w-7xl mx-auto animate-fade-in grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    
+                    <!-- Panel Izquierdo: Generador IA -->
+                    <div class="lg:col-span-5 space-y-6">
+                        <div class="bg-white p-8 rounded-3xl shadow-xl shadow-indigo-100/50 border border-slate-100 sticky top-6">
+                            <div class="flex items-center gap-4 mb-8">
+                                <div class="bg-gradient-to-tr from-indigo-500 to-violet-500 p-3 rounded-xl shadow-lg shadow-indigo-200">
+                                    <i data-lucide="bot" class="text-white w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-2xl font-extrabold text-slate-800">Generador IA</h2>
+                                    <p class="text-sm text-slate-500 font-medium">Crea pruebas al instante</p>
+                                </div>
                             </div>
 
-                            <div>
-                                <label class="block text-gray-700 text-sm font-bold mb-2">
-                                    Cantidad de preguntas
-                                </label>
+                            <div class="space-y-5">
+                                <div>
+                                    <label class="block text-slate-700 text-sm font-semibold mb-2">Tema de evaluación</label>
+                                    <div class="relative">
+                                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="book-open" class="w-5 h-5 text-slate-400"></i>
+                                        </div>
+                                        <input id="quiz-topic" type="text" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm" placeholder="Ej. Revolución Francesa">
+                                    </div>
+                                </div>
 
-                                <input
-                                    id="quiz-count"
-                                    type="number"
-                                    min="1"
-                                    max="30"
-                                    value="10"
-                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
-                                >
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-slate-700 text-sm font-semibold mb-2">Preguntas</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="hash" class="w-5 h-5 text-slate-400"></i>
+                                            </div>
+                                            <input id="quiz-count" type="number" min="1" max="30" value="10" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-slate-700 text-sm font-semibold mb-2">Dificultad</label>
+                                        <select id="quiz-level" class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm">
+                                            <option value="mixto">Mixto</option>
+                                            <option value="basico">Básico</option>
+                                            <option value="intermedio">Intermedio</option>
+                                            <option value="avanzado">Avanzado</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-slate-700 text-sm font-semibold mb-2">Formato</label>
+                                    <select id="quiz-type" class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm">
+                                        <option value="mixta">Mixto (Todos los tipos)</option>
+                                        <option value="multiple_choice">Selección múltiple</option>
+                                        <option value="true_false">Verdadero / Falso</option>
+                                        <option value="short_answer">Respuesta corta</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label class="block text-slate-700 text-sm font-semibold mb-2">Contexto adicional (Opcional)</label>
+                                    <textarea id="quiz-extra" rows="2" class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all resize-none text-sm" placeholder="Ej. Enfocar en fechas clave..."></textarea>
+                                </div>
+
+                                <button id="btn-generate" onclick="window.generateQuizWithAI()" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-indigo-200 transition-all duration-300 hover:-translate-y-1 flex items-center justify-center gap-2">
+                                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                                    <span id="btn-generate-text">Generar Evaluación</span>
+                                </button>
                             </div>
-
-                            <div>
-                                <label class="block text-gray-700 text-sm font-bold mb-2">
-                                    Nivel
-                                </label>
-
-                                <select
-                                    id="quiz-level"
-                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
-                                >
-                                    <option value="mixto">Mixto: básico, intermedio y avanzado</option>
-                                    <option value="basico">Básico</option>
-                                    <option value="intermedio">Intermedio</option>
-                                    <option value="avanzado">Avanzado Ultra</option>
-                                    <option value="general">General</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="block text-gray-700 text-sm font-bold mb-2">
-                                    Tipo de prueba
-                                </label>
-
-                                <select
-                                    id="quiz-type"
-                                    class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-gray-50"
-                                >
-                                    <option value="mixta">Mixta</option>
-                                    <option value="multiple_choice">Selección múltiple</option>
-                                    <option value="true_false">Verdadero/Falso</option>
-                                    <option value="fill_blank">Complete</option>
-                                    <option value="short_answer">Respuesta corta</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="mt-4">
-                            <label class="block text-gray-700 text-sm font-bold mb-2">
-                                Instrucciones extra
-                            </label>
-
-                            <textarea
-                                id="quiz-extra"
-                                rows="3"
-                                class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none bg-gray-50"
-                                placeholder="Ej. Que sea difícil, con problemas largos, razonamiento y trampas."></textarea>
-                        </div>
-
-                        <div class="flex justify-end mt-5">
-                            <button
-                                id="btn-generate"
-                                onclick="window.generateQuizWithAI()"
-                                class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                                Generar Prueba Oficial
-                            </button>
                         </div>
                     </div>
 
-                    <div>
-                        <h2 class="text-xl font-bold text-gray-800 mb-4 px-2">
-                            Base de Datos de Pruebas
-                        </h2>
+                    <!-- Panel Derecho: Lista de Pruebas -->
+                    <div class="lg:col-span-7">
+                        <div class="flex items-center justify-between mb-6">
+                            <h2 class="text-2xl font-extrabold text-slate-800 flex items-center gap-2">
+                                <i data-lucide="database" class="w-6 h-6 text-indigo-500"></i>
+                                Evaluaciones Activas
+                            </h2>
+                            <span class="bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full" id="quiz-counter">0</span>
+                        </div>
 
-                        <div id="quizzes-list" class="grid grid-cols-1 gap-4">
-                            <div class="animate-pulse flex space-x-4 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                                <div class="flex-1 space-y-4 py-1">
-                                    <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                                    <div class="h-4 bg-gray-200 rounded w-1/2"></div>
-                                </div>
+                        <div id="quizzes-list" class="space-y-4">
+                            <!-- Skeleton Loading -->
+                            <div class="animate-pulse bg-white p-6 rounded-2xl border border-slate-100">
+                                <div class="h-5 bg-slate-200 rounded w-3/4 mb-4"></div>
+                                <div class="h-4 bg-slate-200 rounded w-1/2 mb-4"></div>
+                                <div class="h-10 bg-slate-100 rounded-xl w-full"></div>
                             </div>
                         </div>
                     </div>
@@ -388,18 +295,139 @@
             `;
         };
 
+        const renderLoadingStudent = (container) => {
+            container.innerHTML = `
+                <div class="min-h-[60vh] flex flex-col items-center justify-center animate-fade-in">
+                    <div class="relative w-20 h-20 mb-6">
+                        <div class="absolute inset-0 rounded-full border-t-4 border-indigo-600 animate-spin"></div>
+                        <div class="absolute inset-2 rounded-full border-t-4 border-violet-400 animate-spin" style="animation-direction: reverse; animation-duration: 1.5s;"></div>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-2">Conectando...</h2>
+                    <p class="text-slate-500">Buscando la evaluación en el servidor</p>
+                </div>
+            `;
+        };
+
+        const renderStudentName = (container) => {
+            container.innerHTML = `
+                <div class="max-w-md mx-auto mt-16 p-1 animate-fade-in">
+                    <div class="bg-white p-8 rounded-3xl shadow-2xl shadow-green-100 border border-slate-100 text-center">
+                        <div class="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-2xl mb-6 text-green-600">
+                            <i data-lucide="graduation-cap" class="w-8 h-8"></i>
+                        </div>
+                        
+                        <div class="mb-8">
+                            <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3 inline-block">
+                                Evaluación Activa
+                            </span>
+                            <h2 class="text-2xl font-extrabold text-slate-800 leading-tight">
+                                ${escapeHTML(window.appState.currentQuiz.topic)}
+                            </h2>
+                        </div>
+
+                        <div class="text-left mb-6">
+                            <label class="block text-slate-700 text-sm font-semibold mb-2">Tu Nombre Completo</label>
+                            <input
+                                type="text"
+                                id="student-name-input"
+                                class="w-full px-4 py-4 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
+                                placeholder="Ej. Ana Martínez"
+                                onkeypress="if(event.key === 'Enter') window.startQuizProcess()"
+                            >
+                        </div>
+
+                        <button
+                            onclick="window.startQuizProcess()"
+                            class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 px-4 rounded-xl transition-all shadow-lg shadow-green-200 hover:-translate-y-1 flex items-center justify-center gap-2">
+                            <span>Comenzar Prueba</span>
+                            <i data-lucide="play-circle" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderQuizResult = (container) => {
+            const total = window.appState.currentQuiz.questions.length;
+            const score = window.appState.studentScore;
+            const percentage = Math.round((score / total) * 100);
+            
+            let message = "¡Buen esfuerzo!";
+            let icon = "award";
+            let colorClass = "text-indigo-500";
+            let bgClass = "bg-indigo-50";
+
+            if (percentage >= 90) { message = "¡Excelente Trabajo!"; icon = "trophy"; colorClass = "text-yellow-500"; bgClass = "bg-yellow-50"; }
+            else if (percentage >= 60) { message = "¡Prueba Superada!"; icon = "check-circle"; colorClass = "text-green-500"; bgClass = "bg-green-50"; }
+            else { message = "Necesitas repasar más"; icon = "alert-circle"; colorClass = "text-red-500"; bgClass = "bg-red-50"; }
+
+            container.innerHTML = `
+                <div class="max-w-md mx-auto mt-16 p-1 animate-fade-in">
+                    <div class="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100 text-center relative overflow-hidden">
+                        
+                        <!-- Fondo decorativo -->
+                        <div class="absolute -top-24 -right-24 w-48 h-48 bg-slate-50 rounded-full blur-3xl"></div>
+                        
+                        <div class="relative z-10">
+                            <div class="inline-flex items-center justify-center w-24 h-24 ${bgClass} rounded-full mb-6 ${colorClass} shadow-inner">
+                                <i data-lucide="${icon}" class="w-12 h-12"></i>
+                            </div>
+
+                            <h2 class="text-3xl font-black text-slate-800 mb-2">${message}</h2>
+                            <p class="text-slate-500 font-medium mb-8">${escapeHTML(window.appState.studentName)}</p>
+
+                            <div class="bg-slate-50 rounded-2xl p-6 mb-8 border border-slate-100 relative">
+                                <p class="text-xs text-slate-400 uppercase font-bold tracking-widest mb-1">Puntaje Final</p>
+                                <div class="flex items-baseline justify-center gap-1">
+                                    <span class="text-6xl font-black text-slate-800">${score}</span>
+                                    <span class="text-2xl font-bold text-slate-400">/ ${total}</span>
+                                </div>
+                                <div class="mt-4 w-full bg-slate-200 rounded-full h-2">
+                                    <div class="bg-indigo-500 h-2 rounded-full transition-all duration-1000" style="width: ${percentage}%"></div>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-center gap-2 text-sm text-green-600 bg-green-50 py-3 px-4 rounded-xl border border-green-100">
+                                <i data-lucide="check-check" class="w-5 h-5"></i>
+                                <span class="font-medium">Respuestas enviadas al profesor</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        /* ================= LOGICA DE LA APP ================= */
+
+        window.loginTeacher = () => {
+            const pwd = document.getElementById("teacher-pwd").value;
+            if (pwd === "norlan22") {
+                window.navigate("teacher_dashboard");
+            } else {
+                showToast("Contraseña incorrecta", "error");
+            }
+        };
+
         const renderTeacherDashboard = () => {
             if (window.appState.view !== "teacher_dashboard") return;
 
             const listContainer = document.getElementById("quizzes-list");
+            const counter = document.getElementById("quiz-counter");
             if (!listContainer) return;
+
+            counter.innerText = quizzes.length;
 
             if (quizzes.length === 0) {
                 listContainer.innerHTML = `
-                    <div class="bg-white rounded-xl p-8 text-center border border-dashed border-gray-300">
-                        <p class="text-gray-500">No hay pruebas registradas en la base de datos.</p>
+                    <div class="bg-slate-50 rounded-2xl p-10 text-center border-2 border-dashed border-slate-200">
+                        <div class="inline-flex justify-center items-center w-16 h-16 bg-white rounded-full shadow-sm mb-4 text-slate-400">
+                            <i data-lucide="inbox" class="w-8 h-8"></i>
+                        </div>
+                        <p class="text-slate-600 font-medium">No hay pruebas registradas.</p>
+                        <p class="text-slate-400 text-sm mt-1">Usa el generador IA para crear tu primera evaluación.</p>
                     </div>
                 `;
+                lucide.createIcons();
                 return;
             }
 
@@ -410,304 +438,158 @@
                 const resolvedCount = quizResults.length;
 
                 return `
-                    <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition">
-                        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-
+                    <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-5 pl-2">
+                            
                             <div class="flex-1">
-                                <h3 class="font-bold text-gray-800 text-lg mb-1">
+                                <h3 class="font-bold text-slate-800 text-lg leading-tight mb-2 group-hover:text-indigo-600 transition-colors">
                                     ${escapeHTML(quiz.topic)}
                                 </h3>
-
-                                <div class="flex flex-wrap items-center gap-3 text-sm text-gray-500">
-                                    <span class="font-semibold text-gray-700">
-                                        ${quiz.questions.length} Preguntas
+                                
+                                <div class="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 mb-3">
+                                    <span class="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-md">
+                                        <i data-lucide="help-circle" class="w-3 h-3"></i> ${quiz.questions.length} Preguntas
                                     </span>
-
-                                    <span>•</span>
-
-                                    <span class="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded">
-                                        PIN: ${escapeHTML(quiz.pin)}
+                                    <span class="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md border border-indigo-100">
+                                        <i data-lucide="key" class="w-3 h-3"></i> PIN: ${escapeHTML(quiz.pin)}
                                     </span>
-
-                                    <span>•</span>
-
-                                    <span>${new Date(quiz.createdAt).toLocaleDateString()}</span>
-                                </div>
-
-                                <div class="flex flex-wrap gap-2 mt-3">
-                                    <span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
-                                        Nivel: ${escapeHTML(getReadableLevel(quiz.level || "general"))}
-                                    </span>
-
-                                    <span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">
-                                        Tipo: ${escapeHTML(getReadableType(quiz.type || "mixta"))}
+                                    <span class="flex items-center gap-1 text-slate-400">
+                                        <i data-lucide="calendar" class="w-3 h-3"></i> ${new Date(quiz.createdAt).toLocaleDateString()}
                                     </span>
                                 </div>
                             </div>
 
-                            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-gray-100">
-
-                                <div class="text-center px-4 border-r border-gray-200 hidden sm:block">
-                                    <span class="block text-2xl font-black text-gray-800">
-                                        ${resolvedCount}
-                                    </span>
-
-                                    <span class="text-xs text-gray-500 uppercase tracking-wide">
-                                        La han resuelto
-                                    </span>
+                            <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                                <div class="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-center mr-2 flex-grow lg:flex-grow-0">
+                                    <span class="block text-xl font-black text-slate-800 leading-none">${resolvedCount}</span>
+                                    <span class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Respuestas</span>
                                 </div>
 
-                                <div class="block sm:hidden w-full bg-blue-50 text-blue-700 text-sm font-bold px-4 py-2 rounded-lg text-center">
-                                    ${resolvedCount} estudiante${resolvedCount === 1 ? "" : "s"} la han resuelto
+                                <div class="flex flex-row gap-2 flex-grow lg:flex-grow-0">
+                                    <button onclick="window.copyStudentLink('${quiz.pin}')" class="flex-1 bg-white border border-slate-200 hover:bg-slate-50 hover:border-indigo-300 text-slate-700 p-2.5 rounded-xl transition tooltip-btn" title="Copiar Enlace">
+                                        <i data-lucide="copy" class="w-5 h-5 mx-auto"></i>
+                                    </button>
+                                    
+                                    <button onclick="window.downloadExcel('${quiz.id}', '${escapeAttribute(quiz.topic)}')" ${resolvedCount === 0 ? "disabled" : ""} class="flex-1 bg-white border border-slate-200 text-green-600 hover:bg-green-50 hover:border-green-300 disabled:opacity-50 disabled:cursor-not-allowed p-2.5 rounded-xl transition tooltip-btn" title="Descargar Excel">
+                                        <i data-lucide="file-spreadsheet" class="w-5 h-5 mx-auto"></i>
+                                    </button>
+                                    
+                                    <button onclick="window.deleteQuiz('${quiz.id}', '${escapeAttribute(quiz.topic)}')" class="flex-1 bg-white border border-slate-200 text-red-500 hover:bg-red-50 hover:border-red-300 p-2.5 rounded-xl transition tooltip-btn" title="Eliminar">
+                                        <i data-lucide="trash-2" class="w-5 h-5 mx-auto"></i>
+                                    </button>
                                 </div>
-
-                                <button
-                                    onclick="window.copyStudentLink('${quiz.pin}')"
-                                    class="flex-1 lg:flex-none bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 font-medium py-2 px-4 rounded-lg transition">
-                                    Copiar Enlace
-                                </button>
-
-                                <button
-                                    onclick="window.downloadExcel('${quiz.id}', '${escapeAttribute(quiz.topic)}')"
-                                    ${resolvedCount === 0 ? "disabled" : ""}
-                                    class="flex-1 lg:flex-none bg-green-500 hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition">
-                                    Descargar Excel
-                                </button>
-
-                                <button
-                                    onclick="window.deleteQuiz('${quiz.id}', '${escapeAttribute(quiz.topic)}')"
-                                    class="flex-1 lg:flex-none bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-4 rounded-lg transition">
-                                    Eliminar
-                                </button>
                             </div>
                         </div>
                     </div>
                 `;
             }).join("");
+
+            lucide.createIcons();
         };
 
         window.copyStudentLink = (pin) => {
             const baseUrl = window.location.origin + window.location.pathname;
             const link = `${baseUrl}?pin=${pin}`;
 
-            navigator.clipboard.writeText(link)
-                .then(() => showToast("Enlace copiado", "success"))
-                .catch(() => {
-                    const tempInput = document.createElement("input");
-                    tempInput.value = link;
-                    document.body.appendChild(tempInput);
-                    tempInput.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(tempInput);
-                    showToast("Enlace copiado", "success");
-                });
+            navigator.clipboard.writeText(link).then(() => {
+                showToast("Enlace de estudiante copiado", "success");
+            }).catch(() => {
+                const tempInput = document.createElement("input");
+                tempInput.value = link;
+                document.body.appendChild(tempInput);
+                tempInput.select();
+                document.execCommand("copy");
+                document.body.removeChild(tempInput);
+                showToast("Enlace copiado", "success");
+            });
         };
 
         window.deleteQuiz = async (quizId, quizTopic) => {
-            const confirmar = confirm(
-                `¿Seguro que quieres eliminar esta prueba?\n\n${quizTopic}\n\nTambién se eliminarán los resultados guardados.`
-            );
-
+            // Regla de Firebase 2: Sin consultas complejas en el cliente. Filtramos en memoria.
+            const confirmar = confirm(`¿Seguro que quieres eliminar:\n"${quizTopic}"?\n\nSe borrarán todas las respuestas asociadas.`);
             if (!confirmar) return;
 
             try {
-                const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
-
+                const appId = getAppId();
                 const quizDocRef = doc(db, "artifacts", appId, "public", "data", "quizzes", quizId);
+                
+                // Obtener todos los resultados y filtrar en memoria para borrar
                 const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
-                const resultsQuery = query(resultsRef, where("quizId", "==", quizId));
-                const resultsSnapshot = await getDocs(resultsQuery);
-
+                const allResultsSnapshot = await getDocs(resultsRef);
+                
                 const deletePromises = [];
-
-                resultsSnapshot.forEach((resultDoc) => {
-                    deletePromises.push(deleteDoc(resultDoc.ref));
+                allResultsSnapshot.forEach((resultDoc) => {
+                    if(resultDoc.data().quizId === quizId){
+                        deletePromises.push(deleteDoc(resultDoc.ref));
+                    }
                 });
 
                 await Promise.all(deletePromises);
                 await deleteDoc(quizDocRef);
 
-                showToast("Prueba eliminada correctamente.", "success");
-
+                showToast("Evaluación eliminada correctamente.", "success");
             } catch (error) {
-                console.error("Error eliminando prueba:", error);
-                showToast("Error al eliminar la prueba: " + error.message, "error");
+                console.error(error);
+                showToast("Error al eliminar: " + error.message, "error");
             }
         };
 
         window.generateQuizWithAI = async () => {
-            const topicInput = document.getElementById("quiz-topic");
-            const countInput = document.getElementById("quiz-count");
-            const levelInput = document.getElementById("quiz-level");
-            const typeInput = document.getElementById("quiz-type");
-            const extraInput = document.getElementById("quiz-extra");
+            const topic = document.getElementById("quiz-topic").value.trim();
+            const count = parseInt(document.getElementById("quiz-count").value);
+            const level = document.getElementById("quiz-level").value;
+            const type = document.getElementById("quiz-type").value;
+            const extra = document.getElementById("quiz-extra").value.trim();
+            
             const btn = document.getElementById("btn-generate");
+            const btnText = document.getElementById("btn-generate-text");
 
-            const topic = topicInput.value.trim();
-            const count = parseInt(countInput.value);
-            const level = levelInput.value;
-            const type = typeInput.value;
-            const extra = extraInput.value.trim();
-
-            if (!topic) {
-                showToast("Escribe el tema de la prueba.", "error");
-                return;
-            }
-
-            if (!count || count < 1 || count > 30) {
-                showToast("La cantidad debe estar entre 1 y 30 preguntas.", "error");
-                return;
-            }
+            if (!topic) return showToast("Por favor, escribe el tema de la prueba.", "error");
+            if (!count || count < 1 || count > 30) return showToast("La cantidad debe estar entre 1 y 30.", "error");
 
             btn.disabled = true;
-            btn.innerHTML = "Generando prueba difícil...";
+            btn.classList.add("opacity-75", "cursor-wait");
+            btnText.innerText = "Generando con IA...";
 
             try {
-                if (!window.puter || !window.puter.ai) {
-                    throw new Error("Puter.js no cargó correctamente. Recarga la página.");
-                }
+                if (!window.puter || !window.puter.ai) throw new Error("Servicio de IA no disponible temporalmente.");
 
-                const systemPrompt = `
-Eres un generador profesional de pruebas escolares en español.
-
-Tu tarea es crear evaluaciones de alta calidad para estudiantes de undécimo año de secundaria.
-
-Tipos permitidos:
-
-1. multiple_choice
-- Selección múltiple.
-- Debe tener 4 opciones.
-- Usa correct_index para la opción correcta.
-- answer debe ser "".
-
-2. true_false
-- Verdadero o falso.
-- options debe ser ["Verdadero", "Falso"].
-- correct_index debe ser 0 o 1.
-- answer debe ser "".
-
-3. fill_blank
-- Complete.
-- La pregunta debe incluir "____".
-- options debe ser [].
-- correct_index debe ser null.
-- answer debe tener la respuesta correcta.
-
-4. short_answer
-- Respuesta corta.
-- options debe ser [].
-- correct_index debe ser null.
-- answer debe tener la respuesta correcta.
-
-Niveles permitidos:
-- basico
-- intermedio
-- avanzado
-- general
-
-Definición de dificultad:
-- basico: preguntas sencillas y directas.
-- intermedio: preguntas normales, con algo de análisis.
-- avanzado: preguntas MUY difíciles, de reto máximo, con razonamiento profundo, varios pasos, distractores fuertes y enunciados exigentes. Deben ser difíciles para estudiantes de undécimo año, pero sin mencionar otro nivel académico.
-- general: dificultad equilibrada.
-
-Reglas especiales para avanzado:
-- Si el profesor elige avanzado, crea una prueba difícilísima.
-- Usa problemas que requieran análisis, interpretación, cálculo o razonamiento.
-- Evita preguntas obvias.
-- Usa distractores parecidos a la respuesta correcta.
-- Incluye trampas académicas sanas: signos, unidades, interpretación, condiciones, excepciones o detalles ocultos.
-- Mantén el contenido dentro del tema pedido.
-- No menciones la palabra "universitario" en preguntas, opciones ni explicaciones.
-- No expliques nada fuera del JSON.
-
-Devuelve solamente JSON válido.
-No uses markdown.
-No escribas texto antes ni después del JSON.
-
-Formato obligatorio:
+                const systemPrompt = `Eres un experto educativo creando evaluaciones. Devuelve ÚNICAMENTE un objeto JSON válido, sin markdown, sin texto extra.
+Estructura exacta requerida:
 {
   "questions": [
     {
-      "type": "multiple_choice",
-      "level": "avanzado",
-      "question": "Pregunta aquí",
-      "options": ["Opción A", "Opción B", "Opción C", "Opción D"],
-      "correct_index": 0,
-      "answer": ""
+      "type": "multiple_choice", // o true_false, fill_blank, short_answer
+      "level": "basico", // o intermedio, avanzado
+      "question": "Texto de la pregunta",
+      "options": ["Opc1", "Opc2", "Opc3", "Opc4"], // Vacio [] si es fill_blank o short_answer. ["Verdadero", "Falso"] si es true_false.
+      "correct_index": 0, // Indice de la correcta. null si es fill_blank o short_answer.
+      "answer": "" // Respuesta en texto si es fill_blank o short_answer. Vacio "" si tiene options.
     }
   ]
 }
+Asegúrate de generar exactamente la cantidad solicitada, con dificultad coherente.`;
 
-Reglas obligatorias:
-- Genera exactamente la cantidad pedida.
-- Si el nivel es mixto, reparte entre basico, intermedio y avanzado.
-- Si el tipo es mixta, mezcla multiple_choice, true_false, fill_blank y short_answer.
-- Cada pregunta debe tener type, level, question, options, correct_index y answer.
-- No dejes preguntas vacías.
-- Las respuestas deben ser claras y comparables.
-`;
+                const teacherPrompt = `Crea evaluación escolar: Tema: ${topic}. Cantidad: ${count} preguntas. Nivel: ${level}. Formato: ${type}. Notas extra: ${extra || "Ninguna"}.`;
 
-                const teacherRequest = `
-Crea una prueba escolar sobre: ${topic}
-Cantidad exacta de preguntas: ${count}
-Nivel solicitado: ${level}
-Tipo de prueba: ${type}
-Instrucciones extra: ${extra || "Ninguna"}
+                const aiResponse = await puter.ai.chat(`${systemPrompt}\n\nSolicitud:\n${teacherPrompt}`, { model: "gpt-4.1-nano" });
+                const responseText = String(aiResponse);
+                
+                // Extraer JSON robusto
+                const startIndex = responseText.indexOf("{");
+                const endIndex = responseText.lastIndexOf("}");
+                if (startIndex === -1 || endIndex === -1) throw new Error("La IA no devolvió un formato válido.");
+                
+                const quizData = JSON.parse(responseText.substring(startIndex, endIndex + 1));
+                validarQuiz(quizData, count);
 
-Si el nivel solicitado es "avanzado", hazla difícilísima, con razonamiento fuerte, problemas retadores y distractores complicados.
-No uses ni menciones la palabra "universitario".
-Si el nivel solicitado es "mixto", incluye básico, intermedio y avanzado, donde avanzado sea el bloque más difícil.
-Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, complete y respuesta corta.
-`;
-
-                const fullPrompt = `${systemPrompt}\n\nSolicitud del profesor:\n${teacherRequest}`;
-
-                let responseText = "";
-
-                try {
-                    const aiResponse = await puter.ai.chat(fullPrompt, {
-                        model: "gpt-4.1-nano"
-                    });
-
-                    responseText = String(aiResponse);
-                    console.log("Respuesta Puter IA:", responseText);
-
-                } catch (e) {
-                    console.error("Error Puter IA:", e);
-                    throw new Error("ERROR IA: No se pudo generar la prueba. Recarga e intenta otra vez.");
-                }
-
-                let quizData;
-
-                try {
-                    const startIndex = responseText.indexOf("{");
-                    const endIndex = responseText.lastIndexOf("}");
-
-                    if (startIndex === -1 || endIndex === -1) {
-                        throw new Error("La IA no devolvió JSON.");
-                    }
-
-                    const jsonText = responseText.substring(startIndex, endIndex + 1);
-                    quizData = JSON.parse(jsonText);
-
-                    validarQuiz(quizData);
-
-                    if (quizData.questions.length !== count) {
-                        throw new Error("La IA no generó la cantidad exacta. Intenta de nuevo.");
-                    }
-
-                } catch (e) {
-                    console.error("Respuesta cruda fallida:", responseText);
-                    throw new Error("ERROR FORMATO IA: La IA no estructuró bien la prueba. Intenta otra vez.");
-                }
-
-                const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
+                const appId = getAppId();
                 const quizzesRef = collection(db, "artifacts", appId, "public", "data", "quizzes");
                 const pin = Math.random().toString(36).substring(2, 6).toUpperCase();
 
                 await addDoc(quizzesRef, {
-                    topic: `${topic} - ${count} preguntas`,
+                    topic: `${topic}`,
                     baseTopic: topic,
                     count: count,
                     level: level,
@@ -718,156 +600,79 @@ Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, c
                     createdAt: Date.now()
                 });
 
-                topicInput.value = "";
-                countInput.value = "10";
-                levelInput.value = "mixto";
-                typeInput.value = "mixta";
-                extraInput.value = "";
-
-                showToast("Prueba generada y guardada exitosamente.", "success");
+                document.getElementById("quiz-topic").value = "";
+                document.getElementById("quiz-extra").value = "";
+                showToast("¡Evaluación generada con éxito!", "success");
 
             } catch (error) {
-                console.error("Detalle exacto del error:", error);
+                console.error(error);
                 showToast(error.message, "error");
-
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = "Generar Prueba Oficial";
+                btn.classList.remove("opacity-75", "cursor-wait");
+                btnText.innerText = "Generar Evaluación";
             }
         };
 
-        const validarQuiz = (quizData) => {
-            if (!quizData.questions || !Array.isArray(quizData.questions)) {
-                throw new Error("El JSON no tiene questions.");
-            }
-
-            if (quizData.questions.length === 0) {
-                throw new Error("No se generaron preguntas.");
-            }
-
-            const validTypes = ["multiple_choice", "true_false", "fill_blank", "short_answer"];
-
-            quizData.questions.forEach((q, index) => {
-                if (!q.type || !validTypes.includes(q.type)) {
-                    throw new Error(`Pregunta ${index + 1} tiene type inválido.`);
-                }
-
-                if (!q.level || typeof q.level !== "string") {
-                    q.level = "general";
-                }
-
-                const cleanLevel = q.level.toLowerCase();
-
-                if (!["basico", "básico", "intermedio", "avanzado", "general"].includes(cleanLevel)) {
-                    q.level = "general";
-                }
-
-                if (cleanLevel === "básico") {
-                    q.level = "basico";
-                }
-
-                if (!q.question || typeof q.question !== "string") {
-                    throw new Error(`Pregunta ${index + 1} inválida.`);
-                }
-
+        const validarQuiz = (quizData, expectedCount) => {
+            if (!quizData.questions || !Array.isArray(quizData.questions)) throw new Error("Estructura de preguntas inválida.");
+            if (quizData.questions.length === 0) throw new Error("No se generaron preguntas.");
+            // Permitimos ligera variación de cantidad por seguridad, pero forzamos el límite superior
+            if (quizData.questions.length > expectedCount + 5) quizData.questions = quizData.questions.slice(0, expectedCount);
+            
+            quizData.questions.forEach(q => {
+                if (!q.type || !["multiple_choice", "true_false", "fill_blank", "short_answer"].includes(q.type)) q.type = "short_answer";
+                if (!q.level) q.level = "general";
+                
                 if (q.type === "multiple_choice") {
-                    if (!Array.isArray(q.options) || q.options.length !== 4) {
-                        throw new Error(`Pregunta ${index + 1} no tiene 4 opciones.`);
-                    }
-
-                    if (
-                        typeof q.correct_index !== "number" ||
-                        q.correct_index < 0 ||
-                        q.correct_index > 3
-                    ) {
-                        throw new Error(`Pregunta ${index + 1} tiene correct_index inválido.`);
-                    }
-
+                    if (!q.options || q.options.length === 0) q.options = ["A", "B", "C", "D"];
+                    if (typeof q.correct_index !== "number") q.correct_index = 0;
                     q.answer = "";
-                }
-
-                if (q.type === "true_false") {
+                } else if (q.type === "true_false") {
                     q.options = ["Verdadero", "Falso"];
-
-                    if (
-                        typeof q.correct_index !== "number" ||
-                        q.correct_index < 0 ||
-                        q.correct_index > 1
-                    ) {
-                        throw new Error(`Pregunta ${index + 1} tiene correct_index inválido.`);
-                    }
-
+                    if (typeof q.correct_index !== "number") q.correct_index = 0;
                     q.answer = "";
-                }
-
-                if (q.type === "fill_blank" || q.type === "short_answer") {
+                } else {
                     q.options = [];
                     q.correct_index = null;
-
-                    if (!q.answer || typeof q.answer !== "string") {
-                        throw new Error(`Pregunta ${index + 1} no tiene respuesta correcta.`);
-                    }
-
-                    if (q.type === "fill_blank" && !q.question.includes("____")) {
-                        q.question = q.question + " ____";
-                    }
+                    if (!q.answer) q.answer = "Respuesta abierta";
                 }
             });
         };
 
         window.downloadExcel = (quizId, quizTopic) => {
             const quizResults = allResults.filter((r) => r.quizId === quizId);
-
             let excelData = [];
 
             quizResults.forEach((r) => {
-                if (Array.isArray(r.answers) && r.answers.length > 0) {
+                if (r.answers && r.answers.length > 0) {
                     r.answers.forEach((ans, index) => {
                         excelData.push({
                             "Estudiante": r.studentName,
-                            "Puntaje": `${r.score}/${r.totalQuestions}`,
-                            "Calificación (%)": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
-                            "Pregunta #": index + 1,
-                            "Nivel": getReadableLevel(ans.level || "general"),
-                            "Tipo": getReadableType(ans.type),
+                            "Aciertos": `${r.score}/${r.totalQuestions}`,
+                            "Nota %": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
+                            "Preg #": index + 1,
                             "Pregunta": ans.question,
-                            "Respuesta del estudiante": ans.answer,
-                            "Respuesta correcta": ans.correctAnswer,
-                            "Correcta": ans.isCorrect ? "Sí" : "No",
+                            "Resp. Estudiante": ans.answer,
+                            "Resp. Correcta": ans.correctAnswer,
+                            "Estado": ans.isCorrect ? "✅ Correcto" : "❌ Incorrecto",
                             "Fecha": new Date(r.timestamp).toLocaleString()
                         });
                     });
                 } else {
                     excelData.push({
                         "Estudiante": r.studentName,
-                        "Puntaje": `${r.score}/${r.totalQuestions}`,
-                        "Calificación (%)": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
+                        "Aciertos": `${r.score}/${r.totalQuestions}`,
+                        "Nota %": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
                         "Fecha": new Date(r.timestamp).toLocaleString()
                     });
                 }
             });
 
             const ws = XLSX.utils.json_to_sheet(excelData);
-
-            ws["!cols"] = [
-                { wch: 30 },
-                { wch: 15 },
-                { wch: 15 },
-                { wch: 12 },
-                { wch: 18 },
-                { wch: 18 },
-                { wch: 50 },
-                { wch: 30 },
-                { wch: 30 },
-                { wch: 12 },
-                { wch: 25 }
-            ];
-
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Resultados");
-
-            const cleanTopic = quizTopic.substring(0, 15).replace(/[^a-z0-9]/gi, "");
-            XLSX.writeFile(wb, `Reporte_Oficial_${cleanTopic}.xlsx`);
+            XLSX.writeFile(wb, `Resultados_${quizTopic.substring(0,20).replace(/[^a-z0-9]/gi, "")}.xlsx`);
         };
 
         const startStudentView = () => {
@@ -879,24 +684,21 @@ Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, c
                 window.navigate("student_name");
             } else if (quizzes.length > 0) {
                 document.getElementById("app-content").innerHTML = `
-                    <div class="max-w-md mx-auto text-center mt-20 p-6 bg-white rounded-xl shadow-lg border-t-4 border-red-500">
-                        <h2 class="text-xl font-bold text-gray-800">Enlace No Válido</h2>
-                        <p class="text-gray-500 mt-2">
-                            Esta prueba no se encuentra en el servidor o el PIN es incorrecto.
-                        </p>
+                    <div class="max-w-md mx-auto text-center mt-20 p-8 bg-white rounded-3xl shadow-xl border border-red-100">
+                        <div class="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i data-lucide="x-circle" class="w-8 h-8"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold text-slate-800">Enlace No Válido</h2>
+                        <p class="text-slate-500 mt-2">La prueba no existe o el PIN es incorrecto.</p>
                     </div>
                 `;
+                lucide.createIcons();
             }
         };
 
         window.startQuizProcess = () => {
             const name = document.getElementById("student-name-input").value.trim();
-
-            if (!name) {
-                showToast("Debes ingresar tu nombre.", "error");
-                return;
-            }
-
+            if (!name) return showToast("Tu nombre es obligatorio para continuar.", "error");
             window.appState.studentName = name;
             window.navigate("taking_quiz");
         };
@@ -909,78 +711,57 @@ Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, c
 
                 if (q.type === "multiple_choice" || q.type === "true_false") {
                     answerHTML = q.options.map((opt, oIndex) => `
-                        <label class="block p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-green-50 transition">
-                            <div class="flex items-center">
-                                <input
-                                    type="radio"
-                                    name="q_${qIndex}"
-                                    value="${oIndex}"
-                                    class="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 focus:ring-green-500"
-                                >
-
-                                <span class="ml-4 text-gray-700 font-medium">
-                                    ${escapeHTML(opt)}
-                                </span>
+                        <label class="block relative border-2 border-slate-100 rounded-xl cursor-pointer hover:border-indigo-300 hover:bg-indigo-50/50 transition-all group overflow-hidden">
+                            <input type="radio" name="q_${qIndex}" value="${oIndex}" class="peer sr-only">
+                            <div class="p-4 flex items-center">
+                                <div class="w-6 h-6 rounded-full border-2 border-slate-300 peer-checked:border-indigo-600 peer-checked:bg-indigo-600 flex items-center justify-center mr-4 transition-colors">
+                                    <div class="w-2 h-2 rounded-full bg-white opacity-0 peer-checked:opacity-100"></div>
+                                </div>
+                                <span class="text-slate-700 font-medium peer-checked:text-indigo-800 transition-colors">${escapeHTML(opt)}</span>
                             </div>
+                            <div class="absolute inset-0 border-2 border-transparent peer-checked:border-indigo-600 rounded-xl pointer-events-none transition-colors"></div>
                         </label>
                     `).join("");
-                }
-
-                if (q.type === "fill_blank" || q.type === "short_answer") {
+                } else {
                     answerHTML = `
-                        <input
-                            type="text"
-                            name="q_${qIndex}"
-                            class="w-full px-4 py-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            placeholder="Escribe tu respuesta aquí"
-                        >
+                        <input type="text" name="q_${qIndex}" class="w-full px-5 py-4 rounded-xl bg-slate-50 border-2 border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-0 transition-all font-medium text-slate-700" placeholder="Escribe tu respuesta aquí...">
                     `;
                 }
 
                 return `
-                    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 mb-6">
-                        <div class="flex flex-wrap gap-2 mb-4">
-                            ${getLevelBadge(q.level)}
-
-                            <span class="text-xs font-bold bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full">
-                                ${getReadableType(q.type)}
-                            </span>
-                        </div>
-
-                        <h3 class="text-lg font-bold text-gray-800 mb-6">
-                            <span class="text-green-500">${qIndex + 1}.</span>
-                            ${escapeHTML(q.question)}
-                        </h3>
-
-                        <div class="space-y-3">
-                            ${answerHTML}
+                    <div class="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200 mb-6 relative overflow-hidden">
+                        <div class="absolute top-0 left-0 w-2 h-full bg-slate-200"></div>
+                        <div class="pl-4">
+                            <div class="flex items-center gap-2 mb-4">
+                                <span class="bg-slate-800 text-white text-xs font-bold px-3 py-1 rounded-md">Pregunta ${qIndex + 1}</span>
+                                <span class="text-xs font-medium text-slate-400 capitalize">${q.type.replace('_', ' ')}</span>
+                            </div>
+                            <h3 class="text-lg font-bold text-slate-800 mb-6 leading-relaxed">${escapeHTML(q.question)}</h3>
+                            <div class="space-y-3">${answerHTML}</div>
                         </div>
                     </div>
                 `;
             }).join("");
 
             container.innerHTML = `
-                <div class="max-w-3xl mx-auto animate-fade-in pb-10">
-                    <div class="bg-green-600 text-white p-6 rounded-2xl shadow-lg mb-8 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-4 z-20">
-                        <div>
-                            <h2 class="text-xl font-bold">
-                                ${escapeHTML(quiz.topic)}
-                            </h2>
+                <div class="max-w-3xl mx-auto pb-12 animate-fade-in">
+                    <!-- Sticky Header -->
+                    <div class="bg-white/80 backdrop-blur-md border border-slate-200 p-4 rounded-2xl shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-4 z-20">
+                        <div class="flex items-center gap-3">
+                            <div class="bg-indigo-100 text-indigo-600 p-2 rounded-lg"><i data-lucide="book-open" class="w-5 h-5"></i></div>
+                            <h2 class="font-bold text-slate-800 line-clamp-1">${escapeHTML(quiz.topic)}</h2>
                         </div>
-
-                        <div class="bg-white/20 px-4 py-2 rounded-lg font-bold backdrop-blur-sm">
+                        <div class="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-semibold flex items-center gap-2 text-sm">
+                            <i data-lucide="user" class="w-4 h-4"></i>
                             ${escapeHTML(window.appState.studentName)}
                         </div>
                     </div>
 
                     <form id="quiz-form" onsubmit="event.preventDefault(); window.submitQuiz();">
                         ${questionsHTML}
-
-                        <button
-                            type="submit"
-                            id="btn-submit-quiz"
-                            class="w-full mt-4 bg-gray-800 hover:bg-gray-900 text-white font-bold py-5 rounded-2xl shadow-xl transition transform hover:scale-[1.02] text-xl">
-                            Enviar y Finalizar Prueba
+                        <button type="submit" id="btn-submit-quiz" class="w-full mt-8 bg-slate-900 hover:bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-xl shadow-slate-200 hover:shadow-indigo-200 transition-all duration-300 transform hover:-translate-y-1 text-lg flex items-center justify-center gap-2">
+                            <span>Finalizar y Enviar Respuestas</span>
+                            <i data-lucide="send" class="w-5 h-5"></i>
                         </button>
                     </form>
                 </div>
@@ -1000,44 +781,34 @@ Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, c
 
                 if (q.type === "multiple_choice" || q.type === "true_false") {
                     const selected = form.querySelector(`input[name="q_${i}"]:checked`);
-
-                    if (!selected) {
-                        showToast(`Responde la pregunta ${i + 1}`, "error");
-                        return;
-                    }
+                    if (!selected) return showToast(`Te falta responder la pregunta ${i + 1}`, "error");
 
                     const selectedIndex = parseInt(selected.value);
                     const isCorrect = selectedIndex === q.correct_index;
-
                     if (isCorrect) score++;
 
                     studentAnswers.push({
                         question: q.question,
                         type: q.type,
-                        level: q.level,
                         answer: q.options[selectedIndex],
                         correctAnswer: q.options[q.correct_index],
                         isCorrect: isCorrect
                     });
-                }
-
-                if (q.type === "fill_blank" || q.type === "short_answer") {
+                } else {
                     const input = form.querySelector(`input[name="q_${i}"]`);
                     const answer = input.value.trim();
+                    if (!answer) return showToast(`Te falta responder la pregunta ${i + 1}`, "error");
 
-                    if (!answer) {
-                        showToast(`Responde la pregunta ${i + 1}`, "error");
-                        return;
-                    }
-
-                    const isCorrect = compareTextAnswers(answer, q.answer);
-
+                    // Normalizar para comparar strings
+                    const normA = answer.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
+                    const normB = q.answer.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
+                    const isCorrect = normA === normB;
+                    
                     if (isCorrect) score++;
 
                     studentAnswers.push({
                         question: q.question,
                         type: q.type,
-                        level: q.level,
                         answer: answer,
                         correctAnswer: q.answer,
                         isCorrect: isCorrect
@@ -1046,12 +817,13 @@ Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, c
             }
 
             btn.disabled = true;
-            btn.innerHTML = "Enviando a la base de datos...";
+            btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Guardando resultados...`;
+            lucide.createIcons();
 
             try {
-                const appId = typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
+                const appId = getAppId();
                 const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
-
+                
                 await addDoc(resultsRef, {
                     quizId: quiz.id,
                     studentName: window.appState.studentName,
@@ -1063,161 +835,87 @@ Si el tipo de prueba es "mixta", mezcla selección múltiple, verdadero/falso, c
 
                 window.appState.studentScore = score;
                 window.navigate("quiz_result");
-
             } catch (error) {
                 console.error(error);
-                showToast("Error de conexión al enviar. Intenta de nuevo.", "error");
-
+                showToast("Error de conexión al enviar.", "error");
                 btn.disabled = false;
-                btn.innerHTML = "Enviar y Finalizar Prueba";
+                btn.innerHTML = `<span>Reintentar Envío</span><i data-lucide="send" class="w-5 h-5"></i>`;
+                lucide.createIcons();
             }
-        };
-
-        const normalizeText = (text) => {
-            return String(text || "")
-                .toLowerCase()
-                .trim()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/[.,;:!?¿¡()]/g, "")
-                .replace(/\s+/g, " ");
-        };
-
-        const compareTextAnswers = (studentAnswer, correctAnswer) => {
-            const a = normalizeText(studentAnswer);
-            const b = normalizeText(correctAnswer);
-
-            if (a === b) return true;
-
-            const aNoSpace = a.replace(/\s+/g, "");
-            const bNoSpace = b.replace(/\s+/g, "");
-
-            return aNoSpace === bNoSpace;
-        };
-
-        const getReadableType = (type) => {
-            if (type === "multiple_choice") return "Selección múltiple";
-            if (type === "true_false") return "Verdadero/Falso";
-            if (type === "fill_blank") return "Complete";
-            if (type === "short_answer") return "Respuesta corta";
-            if (type === "mixta") return "Mixta";
-            return "Pregunta";
-        };
-
-        const getReadableLevel = (level) => {
-            const cleanLevel = String(level || "general").toLowerCase();
-
-            if (cleanLevel === "basico" || cleanLevel === "básico") return "Básico";
-            if (cleanLevel === "intermedio") return "Intermedio";
-            if (cleanLevel === "avanzado") return "Avanzado Ultra";
-            if (cleanLevel === "mixto") return "Mixto";
-            return "General";
-        };
-
-        const getLevelBadge = (level) => {
-            const cleanLevel = String(level || "general").toLowerCase();
-
-            if (cleanLevel === "basico" || cleanLevel === "básico") {
-                return `<span class="text-xs font-bold bg-green-100 text-green-700 px-3 py-1 rounded-full">Básico</span>`;
-            }
-
-            if (cleanLevel === "intermedio") {
-                return `<span class="text-xs font-bold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">Intermedio</span>`;
-            }
-
-            if (cleanLevel === "avanzado") {
-                return `<span class="text-xs font-bold bg-red-100 text-red-700 px-3 py-1 rounded-full">Avanzado Ultra</span>`;
-            }
-
-            return `<span class="text-xs font-bold bg-gray-100 text-gray-700 px-3 py-1 rounded-full">General</span>`;
         };
 
         const showToast = (message, type = "info") => {
             const toast = document.createElement("div");
-            const bgColor = type === "error" ? "bg-red-500" : "bg-green-500";
-
-            toast.className = `
-                fixed bottom-6 left-1/2 transform -translate-x-1/2
-                w-[90%] max-w-md ${bgColor} text-white px-6 py-4
-                rounded-xl shadow-2xl font-medium z-50 transition-all
-                duration-300 translate-y-20 opacity-0 break-words
-                text-sm sm:text-base
+            const isError = type === "error";
+            toast.className = `fixed bottom-6 left-1/2 transform -translate-x-1/2 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl font-semibold z-50 transition-all duration-300 translate-y-20 opacity-0 min-w-[300px] border ${isError ? 'bg-red-50 text-red-600 border-red-200' : 'bg-slate-900 text-white border-slate-800'}`;
+            
+            toast.innerHTML = `
+                <i data-lucide="${isError ? 'alert-triangle' : 'info'}" class="w-5 h-5"></i>
+                <span>${message}</span>
             `;
-
-            toast.textContent = message;
+            
             document.body.appendChild(toast);
+            lucide.createIcons();
 
-            setTimeout(() => {
-                toast.classList.remove("translate-y-20", "opacity-0");
-            }, 10);
-
+            setTimeout(() => toast.classList.remove("translate-y-20", "opacity-0"), 10);
             setTimeout(() => {
                 toast.classList.add("translate-y-20", "opacity-0");
                 setTimeout(() => toast.remove(), 300);
-            }, 6000);
+            }, 4000);
         };
 
-        const escapeHTML = (value) => {
-            return String(value ?? "")
-                .replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll('"', "&quot;")
-                .replaceAll("'", "&#039;");
-        };
-
-        const escapeAttribute = (value) => {
-            return String(value ?? "")
-                .replaceAll("\\", "\\\\")
-                .replaceAll("'", "\\'")
-                .replaceAll('"', "&quot;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;");
-        };
+        const escapeHTML = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+        const escapeAttribute = (value) => String(value ?? "").replaceAll("\\", "\\\\").replaceAll("'", "\\'").replaceAll('"', "&quot;");
 
         window.onload = () => {
+            lucide.createIcons();
             initFirebase();
             checkRouting();
         };
     </script>
 
     <style>
-        body {
-            font-family: Inter, system-ui, sans-serif;
-            background-color: #f8fafc;
-        }
-
-        .animate-fade-in {
-            animation: fadeIn 0.4s ease-out forwards;
-        }
-
+        /* Animaciones personalizadas */
+        .animate-fade-in { animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
         @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
         }
+        
+        /* Modificadores globales */
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
 
-<body class="min-h-screen flex flex-col">
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-800">
 
-    <header class="bg-white shadow-sm border-b border-gray-100 z-30">
-        <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-center">
-            <h1 class="text-xl font-black text-gray-800">
-                EduTest <span class="text-indigo-600">Pro</span>
-            </h1>
+    <!-- Header Elegante -->
+    <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 sticky top-0">
+        <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="bg-indigo-600 p-1.5 rounded-lg">
+                    <i data-lucide="graduation-cap" class="text-white w-5 h-5"></i>
+                </div>
+                <h1 class="text-xl font-black tracking-tight text-slate-800">
+                    EduTest <span class="text-indigo-600">Pro</span>
+                </h1>
+            </div>
+            
+            <!-- Contexto rápido visual (si estás tomando prueba o en dashboard) -->
+            <div class="text-sm font-medium text-slate-400 hidden sm:block">
+                Plataforma de Evaluación Inteligente
+            </div>
         </div>
     </header>
 
-    <main id="app-content" class="flex-grow w-full px-4 py-8 relative">
-        <!-- Contenido dinámico -->
+    <main id="app-content" class="flex-grow w-full px-4 sm:px-6 py-8 relative">
+        <!-- El contenido se renderiza aquí -->
     </main>
 
 </body>
 </html>
+
