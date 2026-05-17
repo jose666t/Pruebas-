@@ -345,10 +345,10 @@
                                 type="text"
                                 id="student-name-input"
                                 class="w-full px-4 py-4 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all"
-                                placeholder="Ej. Ana Martínez"
+                                placeholder="Ej. Ana Martinez"
                                 onkeypress="if(event.key === 'Enter') window.startQuizProcess()"
                             >
-                            <p class="text-xs text-slate-400 mt-2">* Escribe un nombre real (mínimo 3 letras).</p>
+                            <p class="text-xs text-slate-400 mt-2">* Escribe tu nombre real. Solo se permiten letras.</p>
                         </div>
 
                         <button
@@ -888,32 +888,29 @@ Notas extra: ${extra || "Ninguna"}.`;
             }
         };
 
-        // --- NUEVA VALIDACIÓN ESTRICTA DEL NOMBRE ---
+        // --- VALIDACIÓN DE NOMBRE SÚPER ESTRICTA ---
         window.startQuizProcess = () => {
             const nameInput = document.getElementById("student-name-input").value;
             const name = nameInput.trim();
             
-            // 1. Que no esté vacío
             if (!name) {
                 return showToast("Tu nombre es obligatorio para continuar.", "error");
             }
             
-            // 2. Que tenga al menos 3 caracteres
             if (name.length < 3) {
                 return showToast("Por favor, ingresa un nombre válido (mínimo 3 letras).", "error");
             }
 
-            // 3. Que contenga letras reales (bloquea "123", "...", "-.-", etc.)
-            // Busca cualquier letra de la A a la Z (mayúscula, minúscula, con tilde o la Ñ)
-            const lettersCount = (name.match(/[a-zA-ZáéíóúÁÉÍÓÚñÑ]/g) || []).length;
-            if (lettersCount < 2) {
-                return showToast("El nombre debe contener letras, no solo símbolos o números.", "error");
+            // Esta expresión regular solo permite letras (mayúsculas, minúsculas, con acentos, Ñ) y espacios.
+            // Si el alumno escribe números (1, 2, 3) o símbolos (., -, *, _, Xd), lo bloqueará.
+            const soloLetrasRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+            if (!soloLetrasRegex.test(name)) {
+                return showToast("El nombre solo debe contener letras y espacios. Sin números ni símbolos.", "error");
             }
 
             window.appState.studentName = name;
             window.navigate("taking_quiz");
         };
-        // ---------------------------------------------
 
         const renderTakingQuiz = (container) => {
             const quiz = window.appState.currentQuiz;
