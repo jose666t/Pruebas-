@@ -59,13 +59,13 @@
             view: "init",
             currentQuiz: null,
             studentName: "",
-            studentScore: 0,
+            studentEarned: 0,
             urlPin: null
         };
 
         const getAppId = () => typeof __app_id !== "undefined" ? __app_id : "produccion-edutest";
 
-        // Inicialización de Firebase (Regla estricta de Autenticación)
+        // Inicialización de Firebase
         const initFirebase = async () => {
             let configToUse = myFirebaseConfig;
             if (typeof __firebase_config !== "undefined" && __firebase_config) {
@@ -77,7 +77,6 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                // Autenticación inicial obligatoria
                 if (typeof __initial_auth_token !== "undefined" && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
@@ -116,6 +115,12 @@
                     allResults.push({ id: docItem.id, ...docItem.data() });
                 });
                 if (window.appState.view === "teacher_dashboard") renderTeacherDashboard();
+                
+                // Si el modal de resultados está abierto, se actualiza en vivo
+                const modal = document.getElementById('results-modal');
+                if (modal && window.currentViewedQuizId) {
+                    window.viewResults(window.currentViewedQuizId, window.currentViewedQuizTopic, true);
+                }
             }, (error) => console.error(error));
         };
 
@@ -124,7 +129,6 @@
             if (window.appState.view === "teacher_dashboard") renderTeacherDashboard();
         };
 
-        // Ruteador básico
         window.navigate = (view) => {
             window.appState.view = view;
             render();
@@ -142,7 +146,6 @@
             }
         };
 
-        // Motor de renderizado
         const render = () => {
             const container = document.getElementById("app-content");
             container.innerHTML = "";
@@ -159,7 +162,6 @@
                 case "quiz_result": renderQuizResult(container); break;
             }
             
-            // Actualizar iconos de Lucide
             lucide.createIcons();
         };
 
@@ -223,27 +225,36 @@
                                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <i data-lucide="book-open" class="w-5 h-5 text-slate-400"></i>
                                         </div>
-                                        <input id="quiz-topic" type="text" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm" placeholder="Ej. Revolución Francesa">
+                                        <input id="quiz-topic" type="text" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm" placeholder="Ej. Ecuaciones cuadráticas">
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-2 gap-4">
+                                <div class="grid grid-cols-3 gap-4">
                                     <div>
-                                        <label class="block text-slate-700 text-sm font-semibold mb-2">Preguntas</label>
+                                        <label class="block text-slate-700 text-sm font-semibold mb-2" title="Cantidad de preguntas">Preguntas</label>
                                         <div class="relative">
                                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <i data-lucide="hash" class="w-5 h-5 text-slate-400"></i>
+                                                <i data-lucide="hash" class="w-4 h-4 text-slate-400"></i>
                                             </div>
-                                            <input id="quiz-count" type="number" min="1" max="30" value="10" class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm">
+                                            <input id="quiz-count" type="number" min="1" max="30" value="10" class="w-full pl-9 pr-2 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-slate-700 text-sm font-semibold mb-2" title="Puntaje Total de la Prueba">Pts Totales</label>
+                                        <div class="relative">
+                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                <i data-lucide="star" class="w-4 h-4 text-amber-500"></i>
+                                            </div>
+                                            <input id="quiz-total-points" type="number" min="1" max="1000" value="100" class="w-full pl-9 pr-2 py-3 rounded-xl bg-amber-50 border border-amber-200 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-200 transition-all text-sm font-bold text-amber-700">
                                         </div>
                                     </div>
                                     <div>
                                         <label class="block text-slate-700 text-sm font-semibold mb-2">Dificultad</label>
-                                        <select id="quiz-level" class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm">
+                                        <select id="quiz-level" class="w-full px-2 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm">
                                             <option value="mixto">Mixto</option>
                                             <option value="basico">Básico</option>
-                                            <option value="intermedio">Intermedio</option>
-                                            <option value="avanzado">Avanzado</option>
+                                            <option value="intermedio">Medio</option>
+                                            <option value="avanzado">Difícil</option>
                                         </select>
                                     </div>
                                 </div>
@@ -260,12 +271,12 @@
 
                                 <div>
                                     <label class="block text-slate-700 text-sm font-semibold mb-2">Contexto adicional (Opcional)</label>
-                                    <textarea id="quiz-extra" rows="2" class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all resize-none text-sm" placeholder="Ej. Enfocar en fechas clave..."></textarea>
+                                    <textarea id="quiz-extra" rows="2" class="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all resize-none text-sm" placeholder="Ej. Enfocar en problemas prácticos..."></textarea>
                                 </div>
 
                                 <button id="btn-generate" onclick="window.generateQuizWithAI()" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold py-4 px-4 rounded-xl shadow-lg shadow-indigo-200 transition-all duration-300 hover:-translate-y-1 flex items-center justify-center gap-2">
                                     <i data-lucide="sparkles" class="w-5 h-5"></i>
-                                    <span id="btn-generate-text">Generar Evaluación</span>
+                                    <span id="btn-generate-text">Generar Evaluación Evaluada</span>
                                 </button>
                             </div>
                         </div>
@@ -316,13 +327,16 @@
                             <i data-lucide="graduation-cap" class="w-8 h-8"></i>
                         </div>
                         
-                        <div class="mb-8">
+                        <div class="mb-6">
                             <span class="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-3 inline-block">
                                 Evaluación Activa
                             </span>
-                            <h2 class="text-2xl font-extrabold text-slate-800 leading-tight">
+                            <h2 class="text-2xl font-extrabold text-slate-800 leading-tight mb-2">
                                 ${escapeHTML(window.appState.currentQuiz.topic)}
                             </h2>
+                            <p class="text-amber-600 font-medium text-sm flex items-center justify-center gap-1">
+                                <i data-lucide="star" class="w-4 h-4"></i> Valor Total: ${window.appState.currentQuiz.totalPoints || 100} Puntos
+                            </p>
                         </div>
 
                         <div class="text-left mb-6">
@@ -348,9 +362,10 @@
         };
 
         const renderQuizResult = (container) => {
-            const total = window.appState.currentQuiz.questions.length;
-            const score = window.appState.studentScore;
-            const percentage = Math.round((score / total) * 100);
+            const totalQuestions = window.appState.currentQuiz.questions.length;
+            const totalPoints = window.appState.currentQuiz.totalPoints || 100;
+            const earnedPoints = window.appState.studentEarned;
+            const percentage = Math.round((earnedPoints / totalPoints) * 100);
             
             let message = "¡Buen esfuerzo!";
             let icon = "award";
@@ -365,7 +380,6 @@
                 <div class="max-w-md mx-auto mt-16 p-1 animate-fade-in">
                     <div class="bg-white p-8 rounded-3xl shadow-2xl border border-slate-100 text-center relative overflow-hidden">
                         
-                        <!-- Fondo decorativo -->
                         <div class="absolute -top-24 -right-24 w-48 h-48 bg-slate-50 rounded-full blur-3xl"></div>
                         
                         <div class="relative z-10">
@@ -379,8 +393,8 @@
                             <div class="bg-slate-50 rounded-2xl p-6 mb-8 border border-slate-100 relative">
                                 <p class="text-xs text-slate-400 uppercase font-bold tracking-widest mb-1">Puntaje Final</p>
                                 <div class="flex items-baseline justify-center gap-1">
-                                    <span class="text-6xl font-black text-slate-800">${score}</span>
-                                    <span class="text-2xl font-bold text-slate-400">/ ${total}</span>
+                                    <span class="text-6xl font-black text-slate-800">${earnedPoints}</span>
+                                    <span class="text-2xl font-bold text-slate-400">/ ${totalPoints} Pts</span>
                                 </div>
                                 <div class="mt-4 w-full bg-slate-200 rounded-full h-2">
                                     <div class="bg-indigo-500 h-2 rounded-full transition-all duration-1000" style="width: ${percentage}%"></div>
@@ -436,6 +450,7 @@
             listContainer.innerHTML = sortedQuizzes.map((quiz) => {
                 const quizResults = allResults.filter((r) => r.quizId === quiz.id);
                 const resolvedCount = quizResults.length;
+                const totalPoints = quiz.totalPoints || 100;
 
                 return `
                     <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow group relative overflow-hidden">
@@ -449,19 +464,22 @@
                                 
                                 <div class="flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500 mb-3">
                                     <span class="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded-md">
-                                        <i data-lucide="help-circle" class="w-3 h-3"></i> ${quiz.questions.length} Preguntas
+                                        <i data-lucide="help-circle" class="w-3 h-3"></i> ${quiz.questions.length} Pregs
+                                    </span>
+                                    <span class="flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-1 rounded-md border border-amber-100 font-bold">
+                                        <i data-lucide="star" class="w-3 h-3"></i> ${totalPoints} Pts
                                     </span>
                                     <span class="flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md border border-indigo-100">
                                         <i data-lucide="key" class="w-3 h-3"></i> PIN: ${escapeHTML(quiz.pin)}
                                     </span>
-                                    <span class="flex items-center gap-1 text-slate-400">
+                                    <span class="flex items-center gap-1 text-slate-400 ml-auto">
                                         <i data-lucide="calendar" class="w-3 h-3"></i> ${new Date(quiz.createdAt).toLocaleDateString()}
                                     </span>
                                 </div>
                             </div>
 
                             <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
-                                <div class="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-center mr-2 flex-grow lg:flex-grow-0">
+                                <div class="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2 text-center mr-2 flex-grow lg:flex-grow-0 cursor-pointer hover:bg-slate-100 transition" onclick="window.viewResults('${quiz.id}', '${escapeAttribute(quiz.topic)}')">
                                     <span class="block text-xl font-black text-slate-800 leading-none">${resolvedCount}</span>
                                     <span class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Respuestas</span>
                                 </div>
@@ -471,6 +489,10 @@
                                         <i data-lucide="copy" class="w-5 h-5 mx-auto"></i>
                                     </button>
                                     
+                                    <button onclick="window.viewResults('${quiz.id}', '${escapeAttribute(quiz.topic)}')" ${resolvedCount === 0 ? "disabled" : ""} class="flex-1 bg-white border border-slate-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed p-2.5 rounded-xl transition tooltip-btn" title="Ver Calificaciones en Vivo">
+                                        <i data-lucide="eye" class="w-5 h-5 mx-auto"></i>
+                                    </button>
+
                                     <button onclick="window.downloadExcel('${quiz.id}', '${escapeAttribute(quiz.topic)}')" ${resolvedCount === 0 ? "disabled" : ""} class="flex-1 bg-white border border-slate-200 text-green-600 hover:bg-green-50 hover:border-green-300 disabled:opacity-50 disabled:cursor-not-allowed p-2.5 rounded-xl transition tooltip-btn" title="Descargar Excel">
                                         <i data-lucide="file-spreadsheet" class="w-5 h-5 mx-auto"></i>
                                     </button>
@@ -487,6 +509,154 @@
 
             lucide.createIcons();
         };
+
+        // --- NUEVA FUNCIÓN: VISOR DE CALIFICACIONES EN VIVO ---
+        window.viewResults = (quizId, quizTopic, isUpdate = false) => {
+            window.currentViewedQuizId = quizId;
+            window.currentViewedQuizTopic = quizTopic;
+
+            const quizResults = allResults.filter((r) => r.quizId === quizId).sort((a, b) => {
+                // Ordenar por nota de mayor a menor
+                const ptsA = a.earnedPoints ?? a.score;
+                const ptsB = b.earnedPoints ?? b.score;
+                return ptsB - ptsA;
+            });
+
+            let resultsHTML = '';
+            
+            if (quizResults.length === 0) {
+                resultsHTML = `
+                    <div class="text-center py-10">
+                        <div class="inline-flex justify-center items-center w-16 h-16 bg-slate-100 rounded-full mb-4 text-slate-400">
+                            <i data-lucide="users" class="w-8 h-8"></i>
+                        </div>
+                        <p class="text-slate-500 font-medium">Aún no hay calificaciones para esta prueba.</p>
+                        <p class="text-sm text-slate-400 mt-1">Comparte el enlace con tus estudiantes.</p>
+                    </div>
+                `;
+            } else {
+                resultsHTML = `
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100 text-slate-600 text-xs uppercase tracking-wider">
+                                    <th class="p-4 font-bold border-b border-slate-200">Estudiante</th>
+                                    <th class="p-4 font-bold border-b border-slate-200 text-center">Puntos Obtenidos</th>
+                                    <th class="p-4 font-bold border-b border-slate-200 text-center">Aciertos</th>
+                                    <th class="p-4 font-bold border-b border-slate-200 text-right">Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${quizResults.map(r => {
+                                    const ptsObtenidos = r.earnedPoints ?? r.score;
+                                    const maxPts = r.totalPoints ?? r.totalQuestions;
+                                    const aciertos = r.correctCount ?? r.score;
+                                    const calificacion = ((ptsObtenidos / maxPts) * 100);
+                                    
+                                    // Color dependiendo de la nota
+                                    let badgeColor = "bg-green-100 text-green-700";
+                                    if(calificacion < 60) badgeColor = "bg-red-100 text-red-700";
+                                    else if(calificacion < 80) badgeColor = "bg-yellow-100 text-yellow-700";
+
+                                    return `
+                                        <tr class="hover:bg-slate-50 transition-colors">
+                                            <td class="p-4 font-semibold text-slate-800">
+                                                <div class="flex items-center gap-2">
+                                                    <div class="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center text-xs font-bold uppercase">
+                                                        ${escapeHTML(r.studentName).charAt(0)}
+                                                    </div>
+                                                    ${escapeHTML(r.studentName)}
+                                                </div>
+                                            </td>
+                                            <td class="p-4 text-center">
+                                                <span class="px-3 py-1 rounded-full text-sm font-bold ${badgeColor}">
+                                                    ${ptsObtenidos} / ${maxPts}
+                                                </span>
+                                            </td>
+                                            <td class="p-4 text-center text-sm font-medium text-slate-600">
+                                                ${aciertos} de ${r.totalQuestions}
+                                            </td>
+                                            <td class="p-4 text-right text-xs text-slate-400 font-medium">
+                                                ${new Date(r.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                <br>
+                                                ${new Date(r.timestamp).toLocaleDateString()}
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            if (isUpdate) {
+                // Si solo estamos actualizando (Live Reload), reemplazamos solo el contenido interno
+                const container = document.getElementById('modal-content-body');
+                if (container) {
+                    container.innerHTML = resultsHTML;
+                    lucide.createIcons();
+                }
+                return;
+            }
+
+            // Crear el modal desde cero
+            const modalOverlay = document.createElement('div');
+            modalOverlay.id = 'results-modal';
+            modalOverlay.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4';
+            
+            modalOverlay.innerHTML = `
+                <div class="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-slide-up">
+                    <div class="p-6 border-b border-slate-100 flex justify-between items-start bg-slate-50/80">
+                        <div class="pr-4">
+                            <h3 class="text-2xl font-extrabold text-slate-800 mb-1 flex items-center gap-2">
+                                <i data-lucide="bar-chart-2" class="text-indigo-500"></i> Calificaciones en Vivo
+                            </h3>
+                            <p class="text-sm font-medium text-slate-500 line-clamp-1">${escapeHTML(quizTopic)}</p>
+                        </div>
+                        <button onclick="window.closeModal()" class="p-2 hover:bg-slate-200 rounded-full transition-colors text-slate-400 hover:text-slate-600 flex-shrink-0">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="modal-content-body" class="p-6 overflow-y-auto flex-1 bg-white">
+                        ${resultsHTML}
+                    </div>
+                    
+                    <div class="p-6 border-t border-slate-100 bg-slate-50 flex justify-between items-center">
+                        <div class="text-sm text-slate-500 flex items-center gap-2 font-medium">
+                            <span class="relative flex h-3 w-3">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                            </span>
+                            Actualizando en tiempo real
+                        </div>
+                        <button onclick="window.downloadExcel('${quizId}', '${escapeAttribute(quizTopic)}')" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md shadow-green-200 hover:-translate-y-0.5 flex items-center gap-2">
+                            <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                            <span>Exportar a Excel</span>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modalOverlay);
+            lucide.createIcons();
+            
+            // Cerrar al dar clic fuera del cuadro blanco
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) window.closeModal();
+            });
+        };
+
+        window.closeModal = () => {
+            const modal = document.getElementById('results-modal');
+            if (modal) {
+                modal.remove();
+                window.currentViewedQuizId = null;
+                window.currentViewedQuizTopic = null;
+            }
+        };
+        // ----------------------------------------------------
 
         window.copyStudentLink = (pin) => {
             const baseUrl = window.location.origin + window.location.pathname;
@@ -506,7 +676,6 @@
         };
 
         window.deleteQuiz = async (quizId, quizTopic) => {
-            // Regla de Firebase 2: Sin consultas complejas en el cliente. Filtramos en memoria.
             const confirmar = confirm(`¿Seguro que quieres eliminar:\n"${quizTopic}"?\n\nSe borrarán todas las respuestas asociadas.`);
             if (!confirmar) return;
 
@@ -514,7 +683,6 @@
                 const appId = getAppId();
                 const quizDocRef = doc(db, "artifacts", appId, "public", "data", "quizzes", quizId);
                 
-                // Obtener todos los resultados y filtrar en memoria para borrar
                 const resultsRef = collection(db, "artifacts", appId, "public", "data", "results");
                 const allResultsSnapshot = await getDocs(resultsRef);
                 
@@ -529,6 +697,7 @@
                 await deleteDoc(quizDocRef);
 
                 showToast("Evaluación eliminada correctamente.", "success");
+                window.closeModal(); // Por si tenía el modal abierto de esa prueba
             } catch (error) {
                 console.error(error);
                 showToast("Error al eliminar: " + error.message, "error");
@@ -538,6 +707,7 @@
         window.generateQuizWithAI = async () => {
             const topic = document.getElementById("quiz-topic").value.trim();
             const count = parseInt(document.getElementById("quiz-count").value);
+            const totalPoints = parseInt(document.getElementById("quiz-total-points").value);
             const level = document.getElementById("quiz-level").value;
             const type = document.getElementById("quiz-type").value;
             const extra = document.getElementById("quiz-extra").value.trim();
@@ -547,42 +717,47 @@
 
             if (!topic) return showToast("Por favor, escribe el tema de la prueba.", "error");
             if (!count || count < 1 || count > 30) return showToast("La cantidad debe estar entre 1 y 30.", "error");
+            if (!totalPoints || totalPoints < 1) return showToast("El puntaje total debe ser mayor a 0.", "error");
 
             btn.disabled = true;
             btn.classList.add("opacity-75", "cursor-wait");
-            btnText.innerText = "Generando con IA...";
+            btnText.innerText = "Generando y distribuyendo puntos...";
 
             try {
                 if (!window.puter || !window.puter.ai) throw new Error("Servicio de IA no disponible temporalmente.");
 
-                const systemPrompt = `Eres un experto educativo creando evaluaciones. Devuelve ÚNICAMENTE un objeto JSON válido, sin markdown, sin texto extra.
+                const systemPrompt = `Eres un experto educativo creando evaluaciones matemáticas o de cualquier materia. Devuelve ÚNICAMENTE un objeto JSON válido.
 Estructura exacta requerida:
 {
   "questions": [
     {
       "type": "multiple_choice", // o true_false, fill_blank, short_answer
       "level": "basico", // o intermedio, avanzado
+      "points": 10, // Un número entero. IMPORTANTE: LA SUMA EXACTA DE TODOS LOS PUNTOS DE TODAS LAS PREGUNTAS DEBE DAR EL PUNTAJE TOTAL PEDIDO.
       "question": "Texto de la pregunta",
-      "options": ["Opc1", "Opc2", "Opc3", "Opc4"], // Vacio [] si es fill_blank o short_answer. ["Verdadero", "Falso"] si es true_false.
-      "correct_index": 0, // Indice de la correcta. null si es fill_blank o short_answer.
-      "answer": "" // Respuesta en texto si es fill_blank o short_answer. Vacio "" si tiene options.
+      "options": ["Opc1", "Opc2", "Opc3", "Opc4"], 
+      "correct_index": 0, 
+      "answer": "" 
     }
   ]
-}
-Asegúrate de generar exactamente la cantidad solicitada, con dificultad coherente.`;
+}`;
 
-                const teacherPrompt = `Crea evaluación escolar: Tema: ${topic}. Cantidad: ${count} preguntas. Nivel: ${level}. Formato: ${type}. Notas extra: ${extra || "Ninguna"}.`;
+                const teacherPrompt = `Crea evaluación escolar: Tema: ${topic}. 
+Cantidad: EXACTAMENTE ${count} preguntas. 
+Nivel: ${level}. Formato: ${type}. 
+PUNTAJE TOTAL: ${totalPoints} Puntos. Debes asignar a cada pregunta un atributo numérico 'points'. Asigna más puntos a las preguntas difíciles si el nivel es mixto. LA SUMA de los 'points' de las ${count} preguntas DEBE SER IGUAL A ${totalPoints}.
+Notas extra: ${extra || "Ninguna"}.`;
 
                 const aiResponse = await puter.ai.chat(`${systemPrompt}\n\nSolicitud:\n${teacherPrompt}`, { model: "gpt-4.1-nano" });
                 const responseText = String(aiResponse);
                 
-                // Extraer JSON robusto
                 const startIndex = responseText.indexOf("{");
                 const endIndex = responseText.lastIndexOf("}");
                 if (startIndex === -1 || endIndex === -1) throw new Error("La IA no devolvió un formato válido.");
                 
                 const quizData = JSON.parse(responseText.substring(startIndex, endIndex + 1));
-                validarQuiz(quizData, count);
+                
+                validarQuizYPuntos(quizData, count, totalPoints);
 
                 const appId = getAppId();
                 const quizzesRef = collection(db, "artifacts", appId, "public", "data", "quizzes");
@@ -592,6 +767,7 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
                     topic: `${topic}`,
                     baseTopic: topic,
                     count: count,
+                    totalPoints: totalPoints,
                     level: level,
                     type: type,
                     extra: extra,
@@ -610,19 +786,24 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
             } finally {
                 btn.disabled = false;
                 btn.classList.remove("opacity-75", "cursor-wait");
-                btnText.innerText = "Generar Evaluación";
+                btnText.innerText = "Generar Evaluación Evaluada";
             }
         };
 
-        const validarQuiz = (quizData, expectedCount) => {
+        const validarQuizYPuntos = (quizData, expectedCount, expectedTotalPoints) => {
             if (!quizData.questions || !Array.isArray(quizData.questions)) throw new Error("Estructura de preguntas inválida.");
             if (quizData.questions.length === 0) throw new Error("No se generaron preguntas.");
-            // Permitimos ligera variación de cantidad por seguridad, pero forzamos el límite superior
+            
             if (quizData.questions.length > expectedCount + 5) quizData.questions = quizData.questions.slice(0, expectedCount);
             
-            quizData.questions.forEach(q => {
+            let currentSum = 0;
+
+            quizData.questions.forEach((q, idx) => {
                 if (!q.type || !["multiple_choice", "true_false", "fill_blank", "short_answer"].includes(q.type)) q.type = "short_answer";
                 if (!q.level) q.level = "general";
+                
+                q.points = parseInt(q.points);
+                if (isNaN(q.points) || q.points <= 0) q.points = 1;
                 
                 if (q.type === "multiple_choice") {
                     if (!q.options || q.options.length === 0) q.options = ["A", "B", "C", "D"];
@@ -637,42 +818,59 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
                     q.correct_index = null;
                     if (!q.answer) q.answer = "Respuesta abierta";
                 }
+
+                currentSum += q.points;
             });
+
+            if (currentSum !== expectedTotalPoints) {
+                const factor = expectedTotalPoints / currentSum;
+                let nuevaSuma = 0;
+                
+                quizData.questions.forEach((q, idx) => {
+                    q.points = Math.max(1, Math.round(q.points * factor));
+                    nuevaSuma += q.points;
+                });
+
+                const diferencia = expectedTotalPoints - nuevaSuma;
+                if (diferencia !== 0) {
+                    let ultimaPregunta = quizData.questions[quizData.questions.length - 1];
+                    ultimaPregunta.points += diferencia;
+                    if(ultimaPregunta.points <= 0) ultimaPregunta.points = 1; 
+                }
+            }
         };
 
         window.downloadExcel = (quizId, quizTopic) => {
-            const quizResults = allResults.filter((r) => r.quizId === quizId);
+            const quizResults = allResults.filter((r) => r.quizId === quizId).sort((a,b) => (b.earnedPoints ?? b.score) - (a.earnedPoints ?? a.score));
             let excelData = [];
 
             quizResults.forEach((r) => {
-                if (r.answers && r.answers.length > 0) {
-                    r.answers.forEach((ans, index) => {
-                        excelData.push({
-                            "Estudiante": r.studentName,
-                            "Aciertos": `${r.score}/${r.totalQuestions}`,
-                            "Nota %": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
-                            "Preg #": index + 1,
-                            "Pregunta": ans.question,
-                            "Resp. Estudiante": ans.answer,
-                            "Resp. Correcta": ans.correctAnswer,
-                            "Estado": ans.isCorrect ? "✅ Correcto" : "❌ Incorrecto",
-                            "Fecha": new Date(r.timestamp).toLocaleString()
-                        });
-                    });
-                } else {
-                    excelData.push({
-                        "Estudiante": r.studentName,
-                        "Aciertos": `${r.score}/${r.totalQuestions}`,
-                        "Nota %": ((r.score / r.totalQuestions) * 100).toFixed(0) + "%",
-                        "Fecha": new Date(r.timestamp).toLocaleString()
-                    });
-                }
+                const ptsObtenidos = r.earnedPoints ?? r.score;
+                const maxPts = r.totalPoints ?? r.totalQuestions;
+                const calificacion = ((ptsObtenidos / maxPts) * 100).toFixed(0);
+
+                excelData.push({
+                    "Estudiante": r.studentName,
+                    "Puntos Ganados": `${ptsObtenidos} de ${maxPts} Pts`,
+                    "Aciertos (#)": `${r.correctCount ?? r.score}/${r.totalQuestions}`,
+                    "Calificación Final": `${calificacion}%`,
+                    "Fecha": new Date(r.timestamp).toLocaleString()
+                });
             });
 
             const ws = XLSX.utils.json_to_sheet(excelData);
+            
+            ws["!cols"] = [
+                { wch: 30 }, 
+                { wch: 22 }, 
+                { wch: 15 }, 
+                { wch: 20 }, 
+                { wch: 25 }  
+            ];
+
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Resultados");
-            XLSX.writeFile(wb, `Resultados_${quizTopic.substring(0,20).replace(/[^a-z0-9]/gi, "")}.xlsx`);
+            XLSX.writeFile(wb, `Reporte_Puntajes_${quizTopic.substring(0,15).replace(/[^a-z0-9]/gi, "")}.xlsx`);
         };
 
         const startStudentView = () => {
@@ -708,6 +906,7 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
 
             let questionsHTML = quiz.questions.map((q, qIndex) => {
                 let answerHTML = "";
+                const ptLabel = q.points === 1 ? "punto" : "puntos";
 
                 if (q.type === "multiple_choice" || q.type === "true_false") {
                     answerHTML = q.options.map((opt, oIndex) => `
@@ -732,9 +931,11 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
                     <div class="bg-white p-6 sm:p-8 rounded-3xl shadow-sm border border-slate-200 mb-6 relative overflow-hidden">
                         <div class="absolute top-0 left-0 w-2 h-full bg-slate-200"></div>
                         <div class="pl-4">
-                            <div class="flex items-center gap-2 mb-4">
+                            <div class="flex flex-wrap items-center gap-2 mb-4">
                                 <span class="bg-slate-800 text-white text-xs font-bold px-3 py-1 rounded-md">Pregunta ${qIndex + 1}</span>
-                                <span class="text-xs font-medium text-slate-400 capitalize">${q.type.replace('_', ' ')}</span>
+                                <span class="bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-md flex items-center gap-1">
+                                    <i data-lucide="star" class="w-3 h-3"></i> Vale ${q.points} ${ptLabel}
+                                </span>
                             </div>
                             <h3 class="text-lg font-bold text-slate-800 mb-6 leading-relaxed">${escapeHTML(q.question)}</h3>
                             <div class="space-y-3">${answerHTML}</div>
@@ -745,7 +946,6 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
 
             container.innerHTML = `
                 <div class="max-w-3xl mx-auto pb-12 animate-fade-in">
-                    <!-- Sticky Header -->
                     <div class="bg-white/80 backdrop-blur-md border border-slate-200 p-4 rounded-2xl shadow-sm mb-8 flex flex-col sm:flex-row justify-between items-center gap-4 sticky top-4 z-20">
                         <div class="flex items-center gap-3">
                             <div class="bg-indigo-100 text-indigo-600 p-2 rounded-lg"><i data-lucide="book-open" class="w-5 h-5"></i></div>
@@ -773,11 +973,13 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
             const form = document.getElementById("quiz-form");
             const btn = document.getElementById("btn-submit-quiz");
 
-            let score = 0;
+            let correctCount = 0;
+            let earnedPoints = 0;
             const studentAnswers = [];
 
             for (let i = 0; i < quiz.questions.length; i++) {
                 const q = quiz.questions[i];
+                const ptsDePregunta = q.points || 1;
 
                 if (q.type === "multiple_choice" || q.type === "true_false") {
                     const selected = form.querySelector(`input[name="q_${i}"]:checked`);
@@ -785,33 +987,41 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
 
                     const selectedIndex = parseInt(selected.value);
                     const isCorrect = selectedIndex === q.correct_index;
-                    if (isCorrect) score++;
+                    
+                    if (isCorrect) {
+                        correctCount++;
+                        earnedPoints += ptsDePregunta;
+                    }
 
                     studentAnswers.push({
                         question: q.question,
                         type: q.type,
                         answer: q.options[selectedIndex],
                         correctAnswer: q.options[q.correct_index],
-                        isCorrect: isCorrect
+                        isCorrect: isCorrect,
+                        pointsEarned: isCorrect ? ptsDePregunta : 0
                     });
                 } else {
                     const input = form.querySelector(`input[name="q_${i}"]`);
                     const answer = input.value.trim();
                     if (!answer) return showToast(`Te falta responder la pregunta ${i + 1}`, "error");
 
-                    // Normalizar para comparar strings
                     const normA = answer.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
                     const normB = q.answer.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, "");
                     const isCorrect = normA === normB;
                     
-                    if (isCorrect) score++;
+                    if (isCorrect) {
+                        correctCount++;
+                        earnedPoints += ptsDePregunta;
+                    }
 
                     studentAnswers.push({
                         question: q.question,
                         type: q.type,
                         answer: answer,
                         correctAnswer: q.answer,
-                        isCorrect: isCorrect
+                        isCorrect: isCorrect,
+                        pointsEarned: isCorrect ? ptsDePregunta : 0
                     });
                 }
             }
@@ -827,13 +1037,15 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
                 await addDoc(resultsRef, {
                     quizId: quiz.id,
                     studentName: window.appState.studentName,
-                    score: score,
+                    correctCount: correctCount,
+                    earnedPoints: earnedPoints,
                     totalQuestions: quiz.questions.length,
+                    totalPoints: quiz.totalPoints || 100,
                     answers: studentAnswers,
                     timestamp: Date.now()
                 });
 
-                window.appState.studentScore = score;
+                window.appState.studentEarned = earnedPoints;
                 window.navigate("quiz_result");
             } catch (error) {
                 console.error(error);
@@ -875,14 +1087,18 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
     </script>
 
     <style>
-        /* Animaciones personalizadas */
-        .animate-fade-in { animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        .animate-slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
         
-        /* Modificadores globales */
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -893,7 +1109,6 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
 
 <body class="min-h-screen flex flex-col bg-slate-50 text-slate-800">
 
-    <!-- Header Elegante -->
     <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 z-30 sticky top-0">
         <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
             <div class="flex items-center gap-2">
@@ -905,7 +1120,6 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
                 </h1>
             </div>
             
-            <!-- Contexto rápido visual (si estás tomando prueba o en dashboard) -->
             <div class="text-sm font-medium text-slate-400 hidden sm:block">
                 Plataforma de Evaluación Inteligente
             </div>
@@ -913,7 +1127,6 @@ Asegúrate de generar exactamente la cantidad solicitada, con dificultad coheren
     </header>
 
     <main id="app-content" class="flex-grow w-full px-4 sm:px-6 py-8 relative">
-        <!-- El contenido se renderiza aquí -->
     </main>
 
 </body>
